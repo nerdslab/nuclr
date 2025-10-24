@@ -70,7 +70,7 @@ Evaluation notebooks are present and documented in the `eval_notebooks/` directo
 If you find this repository useful in your research, please consider giving a star ⭐ and a citation
 ```
 @inproceedings{
-    arora2025know,
+    arora2025nuclr,
     title={Know Thyself by Knowing Others: Learning Neuron Identity from Population Context},
     author={Vinam Arora and Divyansha Lachi and Ian J Knight and Mehdi Azabou and Blake Richards and Cole Hurwitz and Joshua H Siegle and Eva L Dyer},
     booktitle={Thirty-ninth Conference on Neural Information Processing Systems},
