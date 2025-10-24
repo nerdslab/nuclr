@@ -6,7 +6,7 @@ Official codebase for [Know Thyself by Knowing Others: Learning Neuron Identity 
 > [!NOTE]
 > We will be updating and cleaning this repository regularly until Nov 1, 2025.
 
-## Usage:
+## Usage
 
 This project has been developed on Python3.10, and uses `venv` to manage the environment.
 Use the following utility script to create an environment and install all requirements:
