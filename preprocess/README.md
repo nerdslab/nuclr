@@ -1,3 +1,7 @@
+# Data Preprocessing
+We use `brainsets` to manage our preprocessing pipelines.
+Run the following commands from the root directory of this project.
+
 **Allen Visual Coding Neurpixels 2019**
 ```bash
 brainsets prepare preprocess/allen_vc_2019_vis --local \
