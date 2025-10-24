@@ -1,5 +1,3 @@
-# v2g + flipped ST layers
-
 from typing import Iterable
 import math
 from einops import rearrange

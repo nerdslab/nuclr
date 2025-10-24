@@ -1,0 +1,14 @@
+_target_: src.models.nuclr_v2ga_spikes.NuclrV2gaSpikes
+ctx_duration: null  # set in train script
+latent_step: 1.0  # seconds
+
+dim: 256
+
+cross_heads: 4
+self_heads: 4
+dim_head: 64
+atn_dropout: 0.0
+lin_dropout: 0.2
+
+t_layers: 2
+st_layers: 2

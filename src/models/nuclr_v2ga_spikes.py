@@ -1,5 +1,5 @@
 from typing import Iterable
-from einops import rearrange
+from einops import rearrange, repeat
 import numpy as np
 import torch
 from torch import Tensor
@@ -9,20 +9,20 @@ import xformers.ops as xops
 from torch_brain.data import chain
 
 from . import BaseNeuronEncoder
-from ..utils import Precision, is_divisible
+from ..utils import Precision
 from ..dataset import ViewData, SpikeData
-from ..nn.attention import RotarySelfAttention
+from ..nn.attention import RotaryCrossAttention, RotarySelfAttention
 from ..nn.rotary_embedding import RotaryEmbedding
 
 
-class NuclrV2gaBin(BaseNeuronEncoder):
+class NuclrV2gaSpikes(BaseNeuronEncoder):
     def __init__(
         self,
         ctx_duration: float,
         latent_step: float,
-        bin_size: float,
         precision: Precision,
         dim: int,
+        cross_heads: int,
         self_heads: int,
         dim_head: int,
         atn_dropout: float,
@@ -33,19 +33,14 @@ class NuclrV2gaBin(BaseNeuronEncoder):
     ):
         super().__init__()
 
-        assert is_divisible(latent_step, bin_size)
-        assert is_divisible(ctx_duration, latent_step)
         self.ctx_duration = ctx_duration
         self.latent_step = latent_step
-        self.bin_size = bin_size
         self.precision = precision
         self.emb_dim = self.dim = dim
 
-        # derived params
-        self.bins_per_latent = int(latent_step / bin_size)  # num of bins per latent
-        self.num_latents = int(np.ceil(ctx_duration / latent_step))
+        t_min, t_max = 1e-4, 8 * ctx_duration
+        # self.time_emb = SinusoidalTimeEmb(dim=dim, t_min=t_min, t_max=t_max)
 
-        t_min, t_max = 1.0, 8.0 * self.num_latents
         self.rotary_emb = RotaryEmbedding(
             head_dim=dim_head,
             rotate_dim=int(dim_head * rot_ratio),
@@ -53,7 +48,19 @@ class NuclrV2gaBin(BaseNeuronEncoder):
             t_max=t_max,
         )
 
-        self.read_in = nn.Linear(self.bins_per_latent, dim)
+        self.num_latents = num_latents = int(np.ceil(ctx_duration / latent_step))
+        latent_times = (torch.arange(num_latents) + 0.5) * latent_step
+        self.register_buffer("latent_times", latent_times)
+
+        self.cross_attn = RotaryCrossAttention(
+            dim=dim,
+            heads=cross_heads,
+            dim_head=dim_head,
+            rotate_value=True,
+            pre_norm_q=False,
+            pre_norm_kv=False,
+        )
+        self.cross_ffn = FFN(dim=dim, mult=4, dropout=lin_dropout, pre_norm=True)
 
         self.t_blocks: Iterable[Iterable[nn.Module]] = nn.ModuleList(  # type: ignore
             [
@@ -65,6 +72,14 @@ class NuclrV2gaBin(BaseNeuronEncoder):
                             dim_head,
                             atn_dropout,
                             rotate_value=True,
+                        ),
+                        RotaryCrossAttention(
+                            dim=dim,
+                            heads=cross_heads,
+                            dim_head=dim_head,
+                            atn_dropout=atn_dropout,
+                            rotate_value=True,
+                            pre_norm_kv=False,
                         ),
                         FFN(dim=dim, mult=4, dropout=lin_dropout, pre_norm=True),
                     ]
@@ -84,6 +99,14 @@ class NuclrV2gaBin(BaseNeuronEncoder):
                             atn_dropout,
                             rotate_value=True,
                         ),
+                        RotaryCrossAttention(
+                            dim=dim,
+                            heads=cross_heads,
+                            dim_head=dim_head,
+                            atn_dropout=atn_dropout,
+                            rotate_value=True,
+                            pre_norm_kv=False,
+                        ),
                         FFN(dim=dim, mult=4, dropout=lin_dropout, pre_norm=True),
                         RotarySelfAttention(
                             dim,
@@ -91,6 +114,14 @@ class NuclrV2gaBin(BaseNeuronEncoder):
                             dim_head,
                             atn_dropout,
                             rotate_value=True,
+                        ),
+                        RotaryCrossAttention(
+                            dim=dim,
+                            heads=cross_heads,
+                            dim_head=dim_head,
+                            atn_dropout=atn_dropout,
+                            rotate_value=True,
+                            pre_norm_kv=False,
                         ),
                         FFN(dim=dim, mult=4, dropout=lin_dropout, pre_norm=True),
                     ]
@@ -103,67 +134,81 @@ class NuclrV2gaBin(BaseNeuronEncoder):
 
     def forward(
         self,
-        bins: Tensor,
+        spikes: Tensor,
+        spike_seqlen: Tensor,
         unit_seqlen: Tensor,
     ) -> Tensor:
 
-        device = bins.device
-        num_units = int(unit_seqlen.sum())
+        device = spikes.device
+        num_units = len(spike_seqlen)
+        temp_latent_seqlen = [self.num_latents for _ in range(num_units)]
+        spax_latent_seqlen = unit_seqlen.tolist() * self.num_latents
 
+        cross_attn_bias = xops.fmha.BlockDiagonalMask.from_seqlens(
+            q_seqlen=temp_latent_seqlen,
+            kv_seqlen=spike_seqlen.tolist(),
+            device=device,
+        )
         spax_attn_bias = xops.fmha.BlockDiagonalMask.from_seqlens(
-            q_seqlen=unit_seqlen.tolist() * self.num_latents,
+            q_seqlen=spax_latent_seqlen,
+            device=device,
+        )
+        temp_attn_bias = xops.fmha.BlockDiagonalMask.from_seqlens(
+            q_seqlen=temp_latent_seqlen,
             device=device,
         )
 
-        x = self.read_in(bins.float())
-        x = rearrange(x, "(U L) D -> U L D", U=num_units, L=self.num_latents)
-        t = torch.arange(self.num_latents, device=device).repeat(num_units, 1).float()
-        x_rot = self.rotary_emb(t)
+        with torch.autocast(device_type="cuda", enabled=False):
+            ctx_rot = self.rotary_emb(spikes)
+            x_rot = self.rotary_emb(self.latent_times)
+
+        ctx = spikes.new_zeros((len(spikes), self.dim))
+        x = spikes.new_zeros((num_units * self.num_latents, self.dim))  # (U L) D
+        x_rot = repeat(x_rot, "L H -> (U L) H", U=num_units)
+
+        # Input cross attention
+        x = x + self.cross_attn(x, ctx, x_rot, ctx_rot, cross_attn_bias)
+        x = x + self.dp(self.cross_ffn(x))
 
         # Temporal attention layers
-        for t_attn, t_ffn in self.t_blocks:
-            x = x + self.dp(t_attn(x=x, rotary=x_rot))
+        for t_attn, tc_attn, t_ffn in self.t_blocks:
+            x = x + self.dp(t_attn(x=x, rotary=x_rot, attn_bias=temp_attn_bias))
+            x = x + self.dp(tc_attn(x, ctx, x_rot, ctx_rot, cross_attn_bias))
             x = x + self.dp(t_ffn(x))
 
         # Spatio-temporal attention layers
-        for t_attn, t_ffn, s_attn, s_ffn in self.st_blocks:
+        for t_attn, tc_attn, t_ffn, s_attn, sc_attn, s_ffn in self.st_blocks:
             # Spatial
-            x = rearrange(x, "U L D -> (L U) D", L=self.num_latents, U=num_units)
+            x = rearrange(x, "(U L) D -> (L U) D", L=self.num_latents, U=num_units)
             x = x + self.dp(s_attn(x, attn_bias=spax_attn_bias))
+            x = rearrange(x, "(L U) D -> (U L) D", U=num_units, L=self.num_latents)
+            x = x + self.dp(sc_attn(x, ctx, x_rot, ctx_rot, cross_attn_bias))
             x = x + self.dp(s_ffn(x))
-            x = rearrange(x, "(L U) D -> U L D", U=num_units, L=self.num_latents)
 
             # Temporal
-            x = x + self.dp(t_attn(x=x, rotary=x_rot))
+            x = x + self.dp(t_attn(x=x, rotary=x_rot, attn_bias=temp_attn_bias))
+            x = x + self.dp(tc_attn(x, ctx, x_rot, ctx_rot, cross_attn_bias))
             x = x + self.dp(t_ffn(x))
 
+        x = rearrange(x, "(U L) D -> U L D", U=num_units, L=self.num_latents)
         y = x.mean(1)
         return y
 
     def tokenize(self, view: SpikeData) -> ViewData:
         spike_times = torch.tensor(view.spikes.timestamps, dtype=torch.float32)
         spike_units = torch.tensor(view.spikes.unit_index, dtype=torch.long)
-        active_units = spike_units.unique()
+        active_units, spike_seqlen = spike_units.unique(return_counts=True)
         assert torch.all(
             active_units[:-1] <= active_units[1:]
         ), "active_units must be sorted"
 
-        # bin spikes
-        num_bins = int(self.ctx_duration / self.bin_size)
-        rate = 1 / self.bin_size
-        bins = torch.zeros((len(view.units), num_bins + 1), dtype=torch.int16)
-        bins.index_put_(
-            indices=(spike_units, torch.floor(spike_times * rate).long()),
-            values=torch.ones(len(spike_times), dtype=torch.int16),
-            accumulate=True,
-        )
-        bins = bins[active_units][:, : self.num_latents * self.bins_per_latent]
-        bins = rearrange(
-            bins, "U (L B) -> (U L) B", L=self.num_latents, B=self.bins_per_latent
-        )
+        # Sort spikes by unit indices
+        sort_idx = torch.argsort(spike_units)
+        spike_times = spike_times[sort_idx]
 
         enc_input = {
-            "bins": chain(bins),
+            "spikes": chain(spike_times),
+            "spike_seqlen": chain(spike_seqlen),
             "unit_seqlen": len(active_units),
         }
 
