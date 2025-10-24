@@ -4,13 +4,14 @@ Official codebase for [Know Thyself by Knowing Others: Learning Neuron Identity 
 ](https://neurips.cc/virtual/2025/poster/115008).
 
 
-### 1. Setup virtual environemnt
+## Usage:
+
 This project use `venv` to manage the Python environment, and has only been tested on Python3.10.
 ```bash
 source venv_setup.sh
 ```
 
-### 2. Preprocessing datasets
+### 1. Preprocessing datasets
 
 #### Allen Visual Coding Neurpixels 2019
 ```bash
@@ -64,13 +65,13 @@ parallel -j 16 python preprocess/bugeon/prepare_data.py \
     --session {} :::: preprocess/bugeon/experiments.txt
 ```
 
-### 3. Downloading neuron metadata
+### 2. Downloading neuron metadata
 Download metadata (csv files) about neurons in all four datasets from this
 [link](https://ik.imagekit.io/7tkfmw7hc/nuclr/neuron_metadata.zip?updatedAt=1747970653540)
 and unzip into `./neuron_metadata`
 
 
-### 4. Training
+### 3. Training
 To train on ephys. datasets (IBL, Allen, Steinmetz et. al.):
 ```bash
 python train.py --config-name train_ephys \
@@ -94,7 +95,7 @@ python train.py --config-name train_ca \
 - Other available configurations can be found in `configs/train_ca.yaml`
 
 
-### 5. Forward pass for final embeddings
+### 4. Forward pass for final embeddings
 A final forward pass over the entire data is needed to get the embeddings from a particular checkpoint.
 The training script would print a "run_id" for the corresponding run. Use this to run the follwing command:
 
@@ -108,7 +109,7 @@ In most cases, you would want to use the "transductive" versions of each dataset
 want to compute embeddings for all neurons here.
 
 
-### 6. Run evaluation on the produced embeddings
+### 5. Run evaluation on the produced embeddings
 Evaluation notebooks are present and documented in the `eval_notebooks/` directory.
 
 
