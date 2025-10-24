@@ -3,14 +3,15 @@
 Official codebase for [Know Thyself by Knowing Others: Learning Neuron Identity from Population Context
 ](https://neurips.cc/virtual/2025/poster/115008).
 
-> [!NOTE]  
+> [!NOTE]
 > We will be updating and cleaning this repository regularly until Nov 1, 2025.
 
 ## Usage:
 
-This project use `venv` to manage the Python environment, and has only been tested on Python3.10.
+This project has been developed on Python3.10, and uses `venv` to manage the environment.
+Use the following utility script to create an environment and install all requirements:
 ```bash
-source venv_setup.sh
+source utils/venv_setup.sh
 ```
 
 **1. Preprocessing datasets**
