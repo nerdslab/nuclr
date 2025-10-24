@@ -1,8 +1,11 @@
 # NuCLR
----
+
+Official codebase for [Know Thyself by Knowing Others: Learning Neuron Identity from Population Context
+](https://neurips.cc/virtual/2025/poster/115008).
+
 
 ### 1. Setup virtual environemnt
-We use `venv` to manage the Python environment. This code-base was developed using Python3.10, and should be tested on the same version.
+This project use `venv` to manage the Python environment, and has only been tested on Python3.10.
 ```bash
 source venv_setup.sh
 ```
@@ -107,3 +110,17 @@ want to compute embeddings for all neurons here.
 
 ### 6. Run evaluation on the produced embeddings
 Evaluation notebooks are present and documented in the `eval_notebooks/` directory.
+
+
+## Citation
+If you find this repository useful in your research, please consider giving a star ⭐ and a citation
+```
+@inproceedings{
+    azabou2023unified,
+    title={Know Thyself by Knowing Others: Learning Neuron Identity from Population Context},
+    author={Vinam Arora and Divyansha Lachi and Ian J Knight and Mehdi Azabou and Blake Aaron Richards and Cole Hurwitz and Joshua H Siegle and Eva L Dyer},
+    booktitle={Thirty-ninth Conference on Neural Information Processing Systems},
+    year={2025},
+    url={https://neurips.cc/virtual/2025/poster/115008}
+}
+```
