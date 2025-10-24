@@ -1,0 +1,17 @@
+defaults:
+  - train_dataset: bugeon_all
+
+val_dataset:
+  - selection:
+    - brainset: bugeon_transcriptomic_2022
+      exclude_sessions:
+      - sb025_20191004
+      - sb026_20191011
+      - sb028_20191106
+      - sb030_20200108
+
+root: ../data/processed
+
+
+evaluator:
+  _target_: src.evaluators.bugeon.BugeonEvaluator

@@ -1,0 +1,5 @@
+_target_: src.losses.vicreg.VICReg
+inv_factor: 25.0
+var_factor: 25.0
+cov_factor: 1.0
+var_cutoff: 1.0

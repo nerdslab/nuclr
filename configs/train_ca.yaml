@@ -1,0 +1,61 @@
+defaults:
+  - data: bugeon_transductive
+  - model: nuclr_v2ga_ca2
+  - loss: sw_dcl
+  - optim: adamw
+  - trainer: contrastive
+  - train_transform: unit_dropout
+  - _self_
+
+views:
+  duration: 30.0  # in seconds
+  max_distance: 240.0  # in seconds
+
+seed: 42
+num_workers: 7  # scaled with num_gpus
+
+precision: bf16
+num_epochs: 30
+batch_size: 16  # total value (across all GPUs)
+
+val:
+  first: false  # do val before train (for debug)
+  every_n_epochs: 1
+  loss: false  # compute val loss
+
+lr:
+  rise: 1  # num of epochs to rise for (could be float to indicate ratio of epochs)
+  decay: 1 # epoch num at which to start decaying (could be float to indicate ratio of epochs)
+  max: 0.000125
+
+grad_clip:
+  enable: true
+  max_norm: 1.0
+
+ckpt:
+  enable: true
+  dir: ../ckpt/  # overriden with $CKPT_DIR in env
+  every_n_epochs: 1
+  load_from: null
+  resume: false
+  model_only: false
+
+wandb:
+  mode: online  # options: online / offline / disabled
+  entity: null
+  project: nuclr_test
+  name: null
+  dir: ./logs
+  resume: allow
+  id: null  # set to wandb id if resuming
+
+ddp:
+  force: false
+  master_addr: localhost
+  master_port: null
+
+debug: null  # options: "train", "tokenizer"
+
+log_weights: false
+log_grads: false
+

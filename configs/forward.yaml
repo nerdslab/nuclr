@@ -1,0 +1,39 @@
+defaults:
+  - trainer: forward
+  - data: allen_vc_2019_vis_probes
+  - _self_
+
+seed: 42
+num_workers: 7  # scaled with num_gpus
+
+overwrite: false
+precision: bf16
+batch_size: 32
+
+embs_root: ../embs/
+
+limit_observation_time: null  # in seconds; null => no limit
+
+ckpt:
+  load_from: null
+  # to stay compatible with trainer
+  dir: ../ckpt/  # overriden with $CKPT_DIR in env
+  resume: false
+  enable: false
+
+wandb:
+  mode: disabled  # options: online / offline / disabled
+  entity: null
+  project: null
+  name: null
+  dir: ./logs
+  resume: allow
+  id: null  # set to wandb id if resuming
+
+ddp:
+  force: false
+  master_addr: localhost
+  master_port: null
+
+debug: null  # options: "train", "tokenizer"
+

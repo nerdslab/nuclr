@@ -1,0 +1,3 @@
+allensdk==2.16.2
+brainsets @ git+https://github.com/neuro-galaxy/brainsets@5a6f025
+temporaldata==0.1.2

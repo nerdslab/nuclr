@@ -1,0 +1,8 @@
+defaults:
+  - val_dataset: ibl_bwm_probes_dev
+  - train_dataset: ibl_bwm_probes_large
+
+root: ../data/processed
+
+evaluator:
+  _target_: src.evaluators.ibl_bwm.IBLBWMEvaluator

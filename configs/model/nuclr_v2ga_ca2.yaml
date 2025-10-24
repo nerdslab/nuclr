@@ -1,0 +1,13 @@
+_target_: src.models.nuclr_v2ga_ca2.NuclrV2gaCa2
+ctx_duration: null  # set in train script
+patch_size: 4
+
+dim: 256
+
+self_heads: 4
+dim_head: 64
+atn_dropout: 0.0
+lin_dropout: 0.2
+
+t_layers: 2
+st_layers: 2

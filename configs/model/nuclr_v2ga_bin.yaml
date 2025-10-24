@@ -1,0 +1,14 @@
+_target_: src.models.nuclr_v2ga_bin.NuclrV2gaBin
+ctx_duration: null  # set in train script
+latent_step: 1.0  # seconds
+bin_size: 0.02
+
+dim: 256
+
+self_heads: 4
+dim_head: 64
+atn_dropout: 0.0
+lin_dropout: 0.2
+
+t_layers: 2
+st_layers: 2

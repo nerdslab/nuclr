@@ -1,0 +1,2 @@
+_target_: src.optim.lamb.Lamb
+weight_decay: 0.01

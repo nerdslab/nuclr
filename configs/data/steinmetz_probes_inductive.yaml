@@ -1,0 +1,43 @@
+val_dataset:
+  - selection:
+    - brainset: steinmetz_2019_probes
+      sessions: &val_sessions
+      - cori_20161214_p0
+      - cori_20161214_p1
+      - cori_20161217_p0
+      - cori_20161217_p1
+      - cori_20161218_p0
+      - cori_20161218_p1
+      - forssmann_20171101_p0
+      - forssmann_20171101_p1
+      - forssmann_20171101_p2
+      - forssmann_20171102_p0
+      - forssmann_20171102_p1
+      - forssmann_20171102_p2
+      - forssmann_20171104_p0
+      - forssmann_20171104_p1
+      - forssmann_20171104_p2
+      - forssmann_20171105_p0
+      - forssmann_20171105_p1
+      - hench_20170615_p0
+      - hench_20170615_p1
+      - hench_20170615_p2
+      - hench_20170616_p0
+      - hench_20170616_p1
+      - hench_20170616_p2
+      - hench_20170617_p0
+      - hench_20170617_p1
+      - hench_20170617_p2
+      - hench_20170618_p0
+      - hench_20170618_p1
+      - hench_20170618_p2
+
+train_dataset:
+  - selection:
+    - brainset: steinmetz_2019_probes
+      exclude_sessions: *val_sessions
+
+root: ../data/processed
+
+evaluator:
+  _target_: src.evaluators.steinmetz.SteinmetzEvaluator

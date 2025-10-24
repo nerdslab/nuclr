@@ -1,0 +1,16 @@
+torch==2.8
+xformers==0.0.32.post2
+numpy==1.23.5
+matplotlib==3.10.0
+scikit-learn==1.6.1
+ray==2.42.1
+pre-commit==4.1.0
+black==24.2.0
+nvitop==1.4.2
+git+https://github.com/neuro-galaxy/torch_brain@d48b0c822fbcaa27e15ba982bd6f619ed4260cd7 # main as of 9/30/25
+git+https://github.com/neuro-galaxy/brainsets@0f33fa79e364bdeb6334f59ac8276fcccb86286e  # main as of 9/30/25
+git+https://github.com/neuro-galaxy/temporaldata@c44800cd6a531b5d6f4f33e6514c96da7340782a  # main as of 9/30/25
+ibllib==2.39.1
+wandb
+umap-learn==0.5.7
+imblearn==0.0

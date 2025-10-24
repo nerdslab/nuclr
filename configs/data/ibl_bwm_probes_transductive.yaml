@@ -1,0 +1,12 @@
+defaults:
+  - val_dataset: ibl_bwm_probes_test
+
+train_dataset:
+  - selection:
+    - brainset: ibl_brainwide_map_qc_probes
+
+
+root: ../data/processed
+
+evaluator:
+  _target_: src.evaluators.ibl_bwm.IBLBWMEvaluator

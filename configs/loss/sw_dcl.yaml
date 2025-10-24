@@ -1,0 +1,5 @@
+_target_: src.losses.sw_contrastive.SampleWiseContrastiveLoss
+tau: 0.2
+dcl: true
+projector: true
+full_denom: true
