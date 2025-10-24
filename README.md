@@ -3,6 +3,8 @@
 Official codebase for [Know Thyself by Knowing Others: Learning Neuron Identity from Population Context
 ](https://neurips.cc/virtual/2025/poster/115008).
 
+> [!NOTE]  
+> We will be updating and cleaning this repository regularly until Nov 1, 2025.
 
 ## Usage:
 
