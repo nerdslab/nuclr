@@ -119,7 +119,7 @@ If you find this repository useful in your research, please consider giving a st
 @inproceedings{
     azabou2023unified,
     title={Know Thyself by Knowing Others: Learning Neuron Identity from Population Context},
-    author={Vinam Arora and Divyansha Lachi and Ian J Knight and Mehdi Azabou and Blake Aaron Richards and Cole Hurwitz and Joshua H Siegle and Eva L Dyer},
+    author={Vinam Arora and Divyansha Lachi and Ian J Knight and Mehdi Azabou and Blake Richards and Cole Hurwitz and Joshua H Siegle and Eva L Dyer},
     booktitle={Thirty-ninth Conference on Neural Information Processing Systems},
     year={2025},
     url={https://neurips.cc/virtual/2025/poster/115008}
