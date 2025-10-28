@@ -69,7 +69,7 @@ Evaluation notebooks are present and documented in the `eval_notebooks/` directo
 
 ## Citation
 If you find this repository useful in your research, please consider giving a star ⭐ and a citation
-```
+```bib
 @inproceedings{
     arora2025nuclr,
     title={Know Thyself by Knowing Others: Learning Neuron Identity from Population Context},
