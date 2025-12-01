@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>NuCLR</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Content-type" content="text/html; charset=utf-8" />
+
+    <!-- GoatCounter analytics -->
+    <script
+      data-goatcounter="https://nuclr.goatcounter.com/count"
+      async
+      src="//gc.zgo.at/count.js"
+    ></script>
+    <!-- Font Awesome -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+    />
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <link rel="stylesheet" href="main.css" />
+  </head>
+
+  <body>
+    <div class="flex flex-col items-center w-[800px] mx-auto">
+      <div class="flex flex-col items-center mt-8">
+        <h1 class="text-5xl font-bold mb-2">NuCLR</h1>
+        <h2 class="text-2xl font-normal text-center">
+          Know Thyself by Knowing Others: <br />
+          Learning Neuron Identity from Population Context
+        </h2>
+      </div>
+
+      <div class="my-4">
+        <div class="flex pt-4 gap-x-5 items-center justify-center">
+          <div class="flex items-center">
+            <a href="https://vinam.dev">Vinam Arora</a
+            ><span class="sup">1</span>
+          </div>
+          <div class="flex items-center">
+            <a href="https://div-ish.com/">Divyansha Lachi</a
+            ><span class="sup">2</span>
+          </div>
+          <div class="flex items-center">
+            <a href="https://www.ianjknight.com/">Ian J. Knight</a>
+            <span class="sup">1</span>
+          </div>
+          <div class="flex items-center">
+            <a href="https://mehai.dev">Mehdi Azabou</a>
+            <span class="sup">1</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-x-5">
+          <div class="flex items-center">
+            <a href="https://mila.quebec/en/directory/blake-richards"
+              >Blake Richards</a
+            >
+            <span class="sup">1</span>
+          </div>
+          <div class="flex items-center">
+            <a href="https://colehurwitz.github.io/">Cole Hurwitz</a>
+            <span class="sup">1</span>
+          </div>
+          <div class="flex items-center">
+            <a href="https://alleninstitute.org/person/josh-siegle/"
+              >Josh H. Siegle</a
+            >
+            <span class="sup">1</span>
+          </div>
+          <div class="flex items-center">
+            <a href="https://directory.seas.upenn.edu/eva-dyer/">Eva L. Dyer</a>
+            <span class="sup">1</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="pb-4">
+        <div class="flex items-center justify-center gap-x-5 flex-wrap">
+          <div class="flex items-center">
+            <span class="sup">1</span>University of Pennsylvania,
+          </div>
+          <div class="flex items-center">
+            <span class="sup">2</span>Columbia University,
+          </div>
+        </div>
+        <div class="flex items-center justify-center gap-x-5 flex-wrap">
+          <div class="flex items-center">
+            <span class="sup">2</span>McGill University,
+          </div>
+          <div class="flex items-center"><span class="sup">2</span>Mila,</div>
+          <div class="flex items-center">
+            <span class="sup">2</span>Allen Institute for Neural Dynamics
+          </div>
+        </div>
+      </div>
+
+      <div class="flex gap-x-4 my-4">
+        <a href="https://openreview.net/pdf?id=zt3RKc6VBp">
+          <div
+            class="flex gap-2 items-center justify-center rounded-full py-2 px-4 bg-amber-600 hover:bg-amber-700 cursor-pointer"
+          >
+            <i class="fa-solid fa-scroll text-lg" style="color: white"></i>
+            <span style="color: white">Paper</span>
+          </div>
+        </a>
+        <a href="https://github.com/nerdslab/nuclr">
+          <div
+            class="flex gap-2 items-center justify-center rounded-full py-2 px-4 bg-gray-800 hover:bg-gray-900 cursor-pointer"
+          >
+            <i class="fa-brands fa-github text-lg" style="color: white"></i>
+            <span style="color: white">Code</span>
+          </div>
+        </a>
+        <a href="https://openreview.net/forum?id=zt3RKc6VBp">
+          <div
+            class="flex gap-2 items-center justify-center rounded-full py-2 px-4 bg-red-500 hover:bg-red-600 cursor-pointer"
+          >
+            <i class="fa-solid fa-comments text-lg" style="color: white"></i>
+            <span style="color: white">OpenReview</span>
+          </div>
+        </a>
+      </div>
+
+      <!-- <div class="w-full border-b border-gray-800 my-4"></div> -->
+
+      <!-- Abstract -->
+      <div class="w-[750px] mt-8">
+        <div class="font-bold text-lg mb-2">Abstract</div>
+        <p class="text-base text-justify">
+          Neurons process information in ways that depend on their cell type,
+          connectivity, and the brain region in which they are embedded.
+          However, inferring these factors from neural activity remains a
+          significant challenge. To build general-purpose representations that
+          allow for resolving information about a neuron's identity, we
+          introduce
+          <span class="font-mono">NuCLR</span>, a self-supervised framework that
+          aims to learn representations of neural activity that allow for
+          differentiating one neuron from the rest.
+          <span class="font-mono">NuCLR</span> brings together views of the same
+          neuron observed at different times and across different stimuli and
+          uses a contrastive objective to pull these representations together.
+          To capture population context without assuming any fixed neuron
+          ordering, we build a spatiotemporal transformer that integrates
+          activity in a permutation-equivariant manner. Across multiple
+          electrophysiology and calcium imaging datasets, a linear decoding
+          evaluation on top of
+          <span class="font-mono">NuCLR</span> representations achieves a new
+          state-of-the-art for both cell type and brain region decoding tasks,
+          and demonstrates strong zero-shot generalization to unseen animals. We
+          present the first systematic scaling analysis for neuron-level
+          representation learning, showing that increasing the number of animals
+          used during pretraining consistently improves downstream performance.
+          The learned representations are also label-efficient, requiring only a
+          small fraction of labeled samples to achieve competitive performance.
+          These results highlight how large, diverse neural datasets enable
+          models to recover information about neuron identity that generalize
+          across animals.
+        </p>
+      </div>
+    </div>
+  </body>
+</html>

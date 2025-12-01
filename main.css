@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+:root {
+  a {
+    text-decoration: none;
+    color: blue;
+    display: inline-block;
+    padding: none;
+    margin: none;
+  }
+
+  .sup {
+    font-size: 0.7rem;
+    vertical-align: top;
+    margin-top: -0.25rem;
+    margin-left: 0.15rem;
+    margin-right: 0.15rem;
+    margin-bottom: 0.25rem;
+  }
+}
