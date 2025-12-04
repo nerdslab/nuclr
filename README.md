@@ -1,7 +1,7 @@
 # NuCLR
 
 Official codebase for [Know Thyself by Knowing Others: Learning Neuron Identity from Population Context
-](https://neurips.cc/virtual/2025/poster/115008).
+](https://arxiv.org/abs/2512.01199).
 
 > [!NOTE]
 > We will be updating and cleaning this repository regularly until this notice is up.
@@ -76,6 +76,6 @@ If you find this repository useful in your research, please consider giving a st
     author={Vinam Arora and Divyansha Lachi and Ian J Knight and Mehdi Azabou and Blake Richards and Cole Hurwitz and Joshua H Siegle and Eva L Dyer},
     booktitle={Thirty-ninth Conference on Neural Information Processing Systems},
     year={2025},
-    url={https://neurips.cc/virtual/2025/poster/115008}
+    url={https://arxiv.org/abs/2512.01199}
 }
 ```
