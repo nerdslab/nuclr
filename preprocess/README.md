@@ -1,4 +1,9 @@
-### Allen VC 2019
+# Data Preprocessing
+
+Given below are the steps needed to preprocess all datasets into formats that
+our training and evaluation code can work with.
+
+## Allen VC 2019
 
 ```bash
 RAW_DIR=../data/raw
@@ -7,7 +12,7 @@ brainsets prepare --local preprocess/allen_vc_2019_vis --raw-dir $RAW_DIR --proc
 bash utils/split_probes_all.sh $PROCESSED_DIR/allen_vc_2019_vis
 ```
 
-### IBL Brainwide Map
+## IBL Brainwide Map
 
 ```bash
 RAW_DIR=../data/raw
@@ -16,7 +21,7 @@ brainsets prepare --local preprocess/ibl_bwm --raw-dir $RAW_DIR --processed-dir 
 bash utils/split_probes_all.sh $PROCESSED_DIR/ibl_brainwide_map_qc
 ```
 
-### Steinmetz et. al. 2019
+## Steinmetz et. al. 2019
 
 First download the dataset into `../data/raw/steinmetz_2019` ([link](https://figshare.com/articles/dataset/Dataset_from_Steinmetz_et_al_2019/9598406)), then
 
@@ -30,7 +35,7 @@ parallel -j 16 python preprocess/steinmetz_2019/prepare_data.py \
 ls ../data/processed/steinmetz_2019 | parallel -j 16 python preprocess/steinmetz_2019/steinmetz_split_probes.py
 ```
 
-### Bugeon et. al. 2022
+## Bugeon et. al. 2022
 
 First, download the dataset into `../data/raw/bugeon_transcriptomic_2022` ([link](https://figshare.com/articles/dataset/A_transcriptomic_axis_predicts_state_modulation_of_cortical_interneurons/19448531)), then
 
