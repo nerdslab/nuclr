@@ -10,6 +10,10 @@ Official codebase for NuCLR as presented in "Know Thyself by Knowing Others: Lea
 [ [`OpenReview`](https://openreview.net/forum?id=zt3RKc6VBp) ]
 [ [`Tweet Thread`](https://x.com/vinam_arora/status/1995930719189959149?s=20) ]
 
+<p align="center">
+  <img src="img/arch-diagram.png" alt="NuCLR Architecture Diagram" width="600"/>
+</p>
+
 ## Usage
 
 This project has been developed on Python3.10, with environment management using [`uv`](https://docs.astral.sh/uv/getting-started/installation/). To setup the environment, do:
