@@ -1,4 +1,0 @@
-brainsets @ git+https://github.com/neuro-galaxy/brainsets@5a6f025
-temporaldata @ git+https://github.com/neuro-galaxy/temporaldata@79918b1
-ONE-api==2.11.2
-ibllib==2.39.1

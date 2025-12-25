@@ -1,39 +1,30 @@
 # Data Preprocessing
-We use `brainsets` to manage our preprocessing pipelines.
-Run the following commands from the root directory of this project.
 
-**Allen Visual Coding Neurpixels 2019**
+Given below are the steps needed to preprocess all datasets into formats that
+our training and evaluation code can work with.
+
+## Allen VC 2019
+
 ```bash
-brainsets prepare preprocess/allen_vc_2019_vis --local \
-    --raw-dir ../data/raw \
-    --processed-dir ../data/processed \
-    --cores 16
-# This would store data in ../data/processed/allen_vc_2019_vis
-
-# Split data insertion-wise
-cat preprocess/allen_vc_2019_vis/session_ids.txt | parallel -j 16 python preprocess/allen_vc_2019_vis/allen_split_probes.py
-# This would store data in ../data/processed/allen_vc_2019_vis_probes
+RAW_DIR=../data/raw
+PROCESSED_DIR=../data/processed
+brainsets prepare --local preprocess/allen_vc_2019_vis --raw-dir $RAW_DIR --processed-dir $PROCESSED_DIR -c 16
+bash utils/split_probes_all.sh $PROCESSED_DIR/allen_vc_2019_vis
 ```
 
+## IBL Brainwide Map
 
-**IBL Brainwide map**
 ```bash
-# This one errors out from time to time, so you'll have to keep
-# rerunning until all sessions have been processed
-brainsets prepare preprocess/ibl_bwm --local \
-    --raw-dir ../data/raw \
-    --processed-dir ../data/processed \
-    --cores 16  [<leader>aa: ask, <leader>ae: edit]
-# This would store data in ../data/processed/ibl_brainwide_map_qc
-
-# Split the data insertion-wise using
-parallel -j 16 python preprocess/ibl_bwm/ibl_split_probes.py {} :::: preprocess/ibl_bwm/eids.txt
-# This would store data in ../data/processed/ibl_brainwide_map_qc_probes
+RAW_DIR=../data/raw
+PROCESSED_DIR=../data/processed
+brainsets prepare --local preprocess/ibl_bwm --raw-dir $RAW_DIR --processed-dir $PROCESSED_DIR -c 16
+bash utils/split_probes_all.sh $PROCESSED_DIR/ibl_brainwide_map_qc
 ```
 
+## Steinmetz et. al. 2019
 
-**Steinmetz et. al. 2019**
 First download the dataset into `../data/raw/steinmetz_2019` ([link](https://figshare.com/articles/dataset/Dataset_from_Steinmetz_et_al_2019/9598406)), then
+
 ```bash
 parallel -j 16 python preprocess/steinmetz_2019/prepare_data.py \
     --raw_dir ../data/raw/steinmetz_2019 \
@@ -44,9 +35,10 @@ parallel -j 16 python preprocess/steinmetz_2019/prepare_data.py \
 ls ../data/processed/steinmetz_2019 | parallel -j 16 python preprocess/steinmetz_2019/steinmetz_split_probes.py
 ```
 
+## Bugeon et. al. 2022
 
-**Bugeon et. al. 2022**
 First, download the dataset into `../data/raw/bugeon_transcriptomic_2022` ([link](https://figshare.com/articles/dataset/A_transcriptomic_axis_predicts_state_modulation_of_cortical_interneurons/19448531)), then
+
 ```bash
 parallel -j 16 python preprocess/bugeon/prepare_data.py \
     --raw_dir ../data/raw/bugeon_transcriptomic_2022 \
