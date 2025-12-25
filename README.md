@@ -37,11 +37,6 @@ python train.py --config-name train_ephys \
 	num_epochs=<num_epochs>
 ```
 
-- Options for `<data-config>` can be found in `configs/data/*.yaml`. E.g. `data=ibl_bwm_probes_dev`
-- Set `num_epochs` such that the total number of training steps is roughly 50,000.
-- The checkpoints would be stored in `../ckpt` by default.
-- Other available configurations can be found in `configs/train_ephys.yaml`
-
 To train on calcium imaging data (Bugeon et. al.):
 
 ```bash
@@ -49,10 +44,11 @@ python train.py --config-name train_ca \
 	data=<data-config> batch_size=128 num_epochs=<num_epochs>
 ```
 
-- Options for `<data-config>` can be found in `configs/data/*.yaml`. E.g. `data=bugeon_dev`
+- We use [Hydra](https://hydra.cc/) for managing configs.
+- Options for `<data-config>` can be found in `configs/data/*.yaml`. E.g. `data=ibl_bwm_probes_dev`
 - Set `num_epochs` such that the total number of training steps is roughly 50,000.
 - The checkpoints would be stored in `../ckpt` by default.
-- Other available configurations can be found in `configs/train_ca.yaml`
+- Other available configurations can be found in `configs/train_ephys.yaml` and `configs/train_ca.yaml`
 
 **4. Forward pass for final embeddings**
 A final forward pass over the entire data is needed to get the embeddings from a particular checkpoint.
