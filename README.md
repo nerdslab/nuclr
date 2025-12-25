@@ -10,10 +10,6 @@
 
 Official codebase for NuCLR as presented in "Know Thyself by Knowing Others: Learning Neuron Identity from Population Context"
 
-> [!NOTE]
-> We will be updating and cleaning this repository regularly until this notice is up.
-> Apologies for the inconvenience.
-
 ## Usage
 
 This project has been developed on Python3.10, and uses `venv` to manage the environment.
