@@ -2,13 +2,13 @@
 
 <img src="https://nerdslab.github.io/nuclr/assets/logo.png" alt="NuCLR Logo" width="100"/>
 
+Official codebase for NuCLR as presented in "Know Thyself by Knowing Others: Learning Neuron Identity from Population Context"
+
 [ [`Project Page`](https://nerdslab.github.io/nuclr) ]
 [ [`Paper`](https://arxiv.org/abs/2512.01199) ]
 [ [`Poster`](https://neurips.cc/media/PosterPDFs/NeurIPS%202025/115008.png?t=1765324874.3845232) ]
 [ [`OpenReview`](https://openreview.net/forum?id=zt3RKc6VBp) ]
-[ [`TweetThread`](https://x.com/vinam_arora/status/1995930719189959149?s=20) ]
-
-Official codebase for NuCLR as presented in "Know Thyself by Knowing Others: Learning Neuron Identity from Population Context"
+[ [`Tweet Thread`](https://x.com/vinam_arora/status/1995930719189959149?s=20) ]
 
 ## Usage
 
