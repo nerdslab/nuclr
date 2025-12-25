@@ -12,23 +12,25 @@ Official codebase for NuCLR as presented in "Know Thyself by Knowing Others: Lea
 
 ## Usage
 
-This project has been developed on Python3.10, and uses `venv` to manage the environment.
-Use the following utility script to create an environment and install all requirements:
+This project has been developed on Python3.10, with environment management using [`uv`](https://docs.astral.sh/uv/getting-started/installation/). To setup the environment, do:
 
 ```bash
-source utils/venv_setup.sh
+uv venv venv -p 3.10
+source venv/bin/activate
+uv pip install -r requirements.txt
 ```
 
-**1. Preprocessing datasets**
-Please follow the steps in `preprocess/README.md`
+Follow the steps below to train and evaluate your own NuCLR model.
 
-**2. Downloading neuron metadata**
-Download metadata (csv files) about neurons in all four datasets from this
-[link](https://ik.imagekit.io/7tkfmw7hc/nuclr/neuron_metadata.zip?updatedAt=1747970653540)
-and unzip into `./neuron_metadata`
+### 1. Preprocessing Data
 
-**3. Training**
-To train on ephys. datasets (IBL, Allen, Steinmetz et. al.):
+1. To preprocess datasets, please follow the steps in `preprocess/README.md`.
+
+2. Download metadata (csv files) about neurons in all four datasets from this [link](https://ik.imagekit.io/7tkfmw7hc/nuclr/neuron_metadata.zip?updatedAt=1747970653540) and unzip into `./neuron_metadata`.
+
+### 2. Training
+
+To train on Electrophysiology data (IBL, Allen, Steinmetz et. al.):
 
 ```bash
 python train.py --config-name train_ephys \
@@ -37,7 +39,7 @@ python train.py --config-name train_ephys \
 	num_epochs=<num_epochs>
 ```
 
-To train on calcium imaging data (Bugeon et. al.):
+To train on Calcium Imaging data (Bugeon et. al.):
 
 ```bash
 python train.py --config-name train_ca \
@@ -50,7 +52,8 @@ python train.py --config-name train_ca \
 - The checkpoints would be stored in `../ckpt` by default.
 - Other available configurations can be found in `configs/train_ephys.yaml` and `configs/train_ca.yaml`
 
-**4. Forward pass for final embeddings**
+### 3. Evaluation
+
 A final forward pass over the entire data is needed to get the embeddings from a particular checkpoint.
 The training script would print a "run_id" for the corresponding run. Use this to run the follwing command:
 
@@ -58,13 +61,11 @@ The training script would print a "run_id" for the corresponding run. Use this t
 bash utils/forward_all_epochs.sh <run_id> <data-config-name> [batch_size] [epoch_stride]
 ```
 
-This would store the embeddings in `../embs/<run_id>/embs_epoch_*.pt` depending on
-the `run_id` and epoch number of the checkpoints used.
-In most cases, you would want to use the "transductive" versions of each dataset, since we
+This would store the embeddings in `../embs/<run_id>/embs_epoch_<num>.pt`.
+In most cases, you should use the "transductive" versions of each dataset while gathering these embeddings, since we
 want to compute embeddings for all neurons here.
 
-**5. Run evaluation on the produced embeddings**
-Evaluation scipts are present and documented in the `eval_scripts/` directory.
+Once you have the embeddings, you can follow the instructions in `eval_scripts/README.md` to run our evaluation scipts.
 
 ## Citation
 
