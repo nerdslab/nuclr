@@ -79,10 +79,6 @@ class RotaryCrossAttention(nn.Module):
             if self.rotate_value:
                 v = apply_rotary_pos_emb(rotary_ctx, v)
 
-        op = None
-        if self.training and (self.atn_dropout != 0.0):
-            op = xops.MemoryEfficientAttentionFlashAttentionOp
-
         # perform attention, by default will use the optimal attention implementation
         out = xops.memory_efficient_attention(
             query=q,
@@ -90,7 +86,7 @@ class RotaryCrossAttention(nn.Module):
             value=v,
             attn_bias=attn_bias,
             p=self.atn_dropout if self.training else 0,
-            op=op,
+            op=xops.MemoryEfficientAttentionFlashAttentionOp,
         )
 
         if rotary_ctx is not None and self.rotate_value:
@@ -163,10 +159,6 @@ class RotarySelfAttention(nn.Module):
             if self.rotate_value:
                 v = apply_rotary_pos_emb(rotary, v)
 
-        op = None
-        if self.training and (self.atn_dropout != 0.0):
-            op = xops.MemoryEfficientAttentionFlashAttentionOp
-
         # perform attention, by default will use the optimal attention implementation
         out = xops.memory_efficient_attention(
             query=q,
@@ -174,7 +166,7 @@ class RotarySelfAttention(nn.Module):
             value=v,
             attn_bias=attn_bias,
             p=self.atn_dropout if self.training else 0,
-            op=op,
+            op=xops.MemoryEfficientAttentionFlashAttentionOp,
         )
 
         if rotary is not None and self.rotate_value:
