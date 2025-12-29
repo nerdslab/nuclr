@@ -89,7 +89,7 @@ class ForwardPass(Trainer):
 
     def _setup_loader(self):
         ds = Dataset(
-            root=self.cfg.data.root,
+            root=self.cfg.data_root,
             config=self.cfg.data.train_dataset,
             unit_id_prefix_fn=lambda _: "",
         )

@@ -21,8 +21,5 @@ val_dataset:
       - sb028_20191112
       - sb028_20191113
 
-root: ../data/processed
-
-
 evaluator:
   _target_: src.evaluators.bugeon.BugeonEvaluator

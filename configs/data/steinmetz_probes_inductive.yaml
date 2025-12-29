@@ -37,7 +37,5 @@ train_dataset:
     - brainset: steinmetz_2019_probes
       exclude_sessions: *val_sessions
 
-root: ../data/processed
-
 evaluator:
   _target_: src.evaluators.steinmetz.SteinmetzEvaluator

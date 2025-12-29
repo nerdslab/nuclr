@@ -226,7 +226,7 @@ class ContrastiveTrainer(Trainer):
 
     def _setup_train_loader(self):
         ds = TwoViewDataset(
-            root=self.cfg.data.root,
+            root=self.cfg.data_root,
             config=self.cfg.data.train_dataset,
             unit_id_prefix_fn=lambda _: "",
         )
@@ -276,7 +276,7 @@ class ContrastiveTrainer(Trainer):
     def _setup_val_loader(self):
         if not self.cfg.val.loss:
             ds = Dataset(
-                root=self.cfg.data.root,
+                root=self.cfg.data_root,
                 config=self.cfg.data.val_dataset,
                 unit_id_prefix_fn=lambda _: "",
             )
@@ -285,7 +285,7 @@ class ContrastiveTrainer(Trainer):
         else:
             # Need two view dataset if we want to compute loss
             ds = TwoViewDataset(
-                root=self.cfg.data.root,
+                root=self.cfg.data_root,
                 config=self.cfg.data.val_dataset,
                 unit_id_prefix_fn=lambda _: "",
             )

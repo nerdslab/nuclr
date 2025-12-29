@@ -3,6 +3,8 @@ defaults:
   - data: allen_vc_2019_vis_probes
   - _self_
 
+data_root: ../data/processed
+
 seed: 42
 num_workers: 7  # scaled with num_gpus
 

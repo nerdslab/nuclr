@@ -2,8 +2,5 @@ defaults:
   - val_dataset: bugeon_val_dev
   - train_dataset: bugeon_train_dev
 
-root: ../data/processed
-
-
 evaluator:
   _target_: src.evaluators.bugeon.BugeonEvaluator

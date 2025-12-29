@@ -7,6 +7,8 @@ defaults:
   - train_transform: unit_dropout
   - _self_
 
+data_root: ../data/processed
+
 views:
   duration: 10.0  # in seconds
   max_distance: 30.0  # in seconds

@@ -2,7 +2,5 @@ defaults:
   - val_dataset: steinmetz_probes_transductive
   - train_dataset: steinmetz_probes_transductive
 
-root: ../data/processed
-
 evaluator:
   _target_: src.evaluators.steinmetz.SteinmetzEvaluator

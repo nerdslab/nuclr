@@ -2,7 +2,5 @@ defaults:
   - val_dataset: allen_vc_vis_probes_test
   - train_dataset: allen_vc_vis_probes_transductive
 
-root: ../data/processed
-
 evaluator:
   _target_: src.evaluators.allen_vc_2019_vis.AllenVC2019VisEvaluator
