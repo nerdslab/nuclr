@@ -16,7 +16,7 @@ num_workers: 7  # scaled with num_gpus
 
 precision: bf16
 num_epochs: 300
-batch_size: 32  # total value (across all GPUs)
+batch_size: 128  # total value (across all GPUs)
 
 val:
   first: false  # do val before train (for debug)

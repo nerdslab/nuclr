@@ -37,17 +37,13 @@ Follow the steps below to train and evaluate your own NuCLR model.
 To train on Electrophysiology data (IBL, Allen, Steinmetz et. al.):
 
 ```bash
-python train.py --config-name train_ephys \
-	data=<data-config> \
-	batch_size=128 \
-	num_epochs=<num_epochs>
+python train.py --config-name train_ephys data=<data-config> num_epochs=<num_epochs>
 ```
 
 To train on Calcium Imaging data (Bugeon et. al.):
 
 ```bash
-python train.py --config-name train_ca \
-	data=<data-config> batch_size=128 num_epochs=<num_epochs>
+python train.py --config-name train_ca data=<data-config> num_epochs=<num_epochs>
 ```
 
 - We use [Hydra](https://hydra.cc/) for managing configs.
