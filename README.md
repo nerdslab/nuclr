@@ -55,7 +55,7 @@ python train.py --config-name train_ca data=<data-config> num_epochs=<num_epochs
 ### 3. Evaluation
 
 A final forward pass over the entire data is needed to get the embeddings from a particular checkpoint.
-The training script would print a "run_id" for the corresponding run. Use this to run the follwing command:
+The training script would print a "run_id" for the corresponding run. Use this to run the following command:
 
 ```bash
 bash utils/forward_all_epochs.sh <run_id> <data-config-name> [batch_size] [epoch_stride]
