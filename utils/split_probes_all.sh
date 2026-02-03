@@ -17,4 +17,4 @@ h5_files=($(find "$INPUT_ROOT" -maxdepth 1 -type f -name "*.h5"))
 echo "Found ${#h5_files[@]} .h5 files in $INPUT_ROOT"
 
 # Parallel processing of each .h5 file using split_probes.py
-printf "%s\n" "${h5_files[@]}" | xargs -n 1 -P 16 -I {} python preprocess/allen_vc_2019_vis/split_probes.py --input-fname {}
+printf "%s\n" "${h5_files[@]}" | xargs -n 1 -P 16 -I {} python utils/split_probes.py --input-fname {}
