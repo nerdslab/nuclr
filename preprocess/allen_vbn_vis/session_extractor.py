@@ -8,7 +8,7 @@ from the Allen Institute Visual Behavior Neuropixels Dataset
 import pandas as pd
 import numpy as np
 
-from temporaldata import IrregularTimeSeries, ArrayDict, Interval
+from temporaldata import IrregularTimeSeries, ArrayDict, Interval, Data
 
 def extract_units(session : pd.DataFrame, unit_filter_config):
     # Extract units & channels
@@ -19,21 +19,29 @@ def extract_units(session : pd.DataFrame, unit_filter_config):
     units = units.merge(channels, left_on = "peak_channel_id", right_index = True)
 
     # Filter by filter_config
-    # TODO
+    unit_mask = (
+        (units.isi_violations < unit_filter_config["isi_violations"]) &
+        (units.amplitude_cutoff < unit_filter_config["amplitude_cutoff"]) &
+        (units.presence_ratio > unit_filter_config["presence_ratio"])
+    )
+    # Filter to visual cortex only 
+    vis_mask = units["structure_acronym"].astype(str).str.startswith("VIS")
+    
+    units = units[unit_mask & vis_mask]
 
     return units
 
 
 def extract_spikes(session : pd.DataFrame, selected_units : pd.DataFrame):
     # Extract extract_spikes
-    spikes = session.spike_times()
+    spikes = session.spike_times
     
     spike_times = [] # Keep an array of all units spike times
     spike_unit_indices = [] # Track indices for spike times
 
     # Filter by selected units
     # spikes is type `dict`
-    for df_id, unit_id in enumerate(selected_units):
+    for df_id, unit_id in enumerate(selected_units.index):
         # Extract unit_id's spikes
         unit_spikes = spikes[unit_id]
 
@@ -62,6 +70,7 @@ def extract_spikes(session : pd.DataFrame, selected_units : pd.DataFrame):
     return spikes, units
 
 def interval_sorter():
+    # Should be stored as a Data object
     return
 
 def extract_session_data(session, manifest_item, unit_filter_config):

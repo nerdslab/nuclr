@@ -16,6 +16,7 @@ from pathlib import Path
 import h5py
 import logging
 import datetime
+from typing import Literal, get_args
 
 from session_extractor import extract_session_data
 
@@ -25,10 +26,26 @@ from allensdk.brain_observatory.behavior.behavior_project_cache.\
 
 # Setup argument extensions
 parser = ArgumentParser()
-parser.add_argument("--reprocess", action="store_true")
-# TODO: Implement extended arguments
-# Unit extraction filters? Spike quality filters? 
 
+parser.add_argument("--reprocess", action="store_true")
+
+# Unit filtering configuration
+DEFAULT_FILTERS = ["isi_violations", "amplitude_cutoff", "presence_ratio"]
+FILTER_SPECS = {
+    "isi_violations": {"arg": "isi_violations_max", "default": 0.5},
+    "amplitude_cutoff": {"arg": "amplitude_cutoff_max", "default": 0.1},
+    "presence_ratio": {"arg": "presence_ratio_min", "default": 0.9},
+}
+parser.add_argument(
+    "--unit-filter",
+    nargs="+",
+    action="extend",
+    choices=list(FILTER_SPECS.keys()),
+    default=None,
+)
+for name, spec in FILTER_SPECS.items():
+    cli_flag = "--" + spec["arg"].replace("_", "-")
+    parser.add_argument(cli_flag, type=float, default=spec["default"])
 
 class Pipeline(BrainsetPipeline):
 
@@ -79,6 +96,13 @@ class Pipeline(BrainsetPipeline):
         # Return if session is already processed and user doesn't want reprocessing
         if (store_path.exists() and not self.args.reprocess):
             return
+        
+        # Grab unit filters - either default or overidden with arguments
+        selected_filters = list(dict.fromkeys(self.args.unit_filter or DEFAULT_FILTERS))
+        unit_filter_config = {
+            name: getattr(self.args, FILTER_SPECS[name]["arg"])
+            for name in selected_filters
+        }
 
         # Set Descriptions
         # Brainset Description

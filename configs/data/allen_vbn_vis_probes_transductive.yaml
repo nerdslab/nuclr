@@ -1,0 +1,7 @@
+defaults:
+  - val_dataset: allen_vb_vis_probes_test
+  - train_dataset: allen_vb_vis_probes_transductive
+
+# TODO: needs implementation for VB
+evaluator:
+  _target_: src.evaluators.allen_vc_2019_vis.AllenVC2019VisEvaluator
