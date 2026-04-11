@@ -17,7 +17,7 @@ import h5py
 import logging
 import datetime
 
-from session_extractor import extract_behavior, extract_channels, extract_probes, extract_units
+from session_extractor import extract_session_data
 
 from allensdk.brain_observatory.behavior.behavior_project_cache.\
     behavior_neuropixels_project_cache \
@@ -44,6 +44,9 @@ class Pipeline(BrainsetPipeline):
         sessions_table = cache.get_ecephys_session_table()
 
         # Ensure manifest index is a string
+        # All the rows in the ecephys_session_table correspond 
+        # to a single ecephys_session_id
+        # Conversion from Int64Dtype -> String
         sessions_table.index = [str(x) for x in sessions_table.index]
 
         return sessions_table
@@ -89,49 +92,61 @@ class Pipeline(BrainsetPipeline):
 
         # Session Description
         session_description = SessionDescription(
-            id = self.brainset_id,
-            recording_date = datetime.strptime(
+            id = str(manifest_item.Index),
+            recording_date = datetime.datetime.strptime(
                 session.date_of_acquisition.split(" ")[0],
                 "%Y-%m-%d"
                 ),
             #TODO: add DISCRETE_VISUAL_BEHAVIOR to task.py in brainsets
             # Tracks session type for now (e.g., EPHYS_1_images_H_3uL_reward
-            task = session.session_type,
-            image_set = session.image_set,
-            channel_count = session.channel_count,
-            prior_exposure_to_image_set = session.prior_exposure_to_image_set,
-            experience_level = session.experience_level,
+            task = manifest_item.session_type,
+            image_set = manifest_item.image_set,
+            channel_count = manifest_item.channel_count,
+            prior_exposure_to_image_set = manifest_item.prior_exposure_to_image_set,
+            experience_level = manifest_item.experience_level,
             # Structure acronmys and others may be useful
             )
 
         # Subject Description
         subject_description = SubjectDescription(
-            id = self.brainset_id,
+            id = manifest_item.mouse_id,
             species = Species.MUS_MUSCULUS,
-            mouse_id = session.mouse_id,
-            genotype = session.genotype,
-            sex = (Sex.MALE if session.sex == "M" else Sex.FEMALE),
-            age = session.age_in_days,
+            genotype = manifest_item.genotype,
+            sex = (Sex.MALE if manifest_item.sex == "M" else Sex.FEMALE),
+            age = manifest_item.age_in_days,
             )
 
         # Extract Session Information
-
+        self.update_status("EXTRACTING SESSION DATA")
+        unit_data, spikes, intervals, domain = extract_session_data(
+            session,
+            manifest_item, 
+            unit_filter_config
+            )
 
 
         # Initialize Data object
+
         # SpikeData requires:
-        #    spikes: Spikes
+        #    spikes: Spikes : td.IrregularTimeSeries
         #    session: bsd.SessionDescription
         #    brainset: bsd.BrainsetDescription
         #    units: td.ArrayDict
+        
+        # The Data object will contain:
+        # spikes : ITS of spikes with unit id per spike index
+        # units : ArrayDict of filtered units with metadata 
+        # intervals : Data object of Intervals for images, tasks, and optotagging times 
+        # domain : Interval of first spike in session to last in session
+        
         data = Data(
             session = session_description,
             brainset = brainset_description,
             subject = subject_description,
-            spikes = ...,
-            units = ...,
-            stimulus_epochs = ...,
-            domain = ...,
+            spikes = spikes, # IrregularTimeSeries
+            units = unit_data, # ArrayDict
+            intervals = intervals, # Data
+            domain = domain # Interval
         )
 
         # Save as hdf5
