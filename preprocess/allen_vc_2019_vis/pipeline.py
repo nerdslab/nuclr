@@ -1,6 +1,6 @@
 # /// brainset-pipeline
 # python-version = "3.10"
-# dependencies = ["allensdk==2.16.2"]
+# dependencies = ["allensdk==2.16.2", "pynwb<3", "hdmf<5", "ray<2.42"]
 # ///
 
 from argparse import ArgumentParser
