@@ -87,8 +87,10 @@ class Pipeline(BrainsetPipeline):
         # Receive from download()
         session , manifest_item = download_output
 
+        self.processed_dir.mkdir(exist_ok=True, parents=True)
+
         # Output file name is session-id-based
-        store_path = self.processed_dir / f"{session.id}.h5"
+        store_path = self.processed_dir / f"{manifest_item.Index}.h5"
 
         # Return if session is already processed and user doesn't want reprocessing
         if (store_path.exists() and not self.args.reprocess):
@@ -114,14 +116,14 @@ class Pipeline(BrainsetPipeline):
         session_description = SessionDescription(
             id = str(manifest_item.Index),
             recording_date = datetime.datetime.strptime(
-                session.date_of_acquisition.split(" ")[0],
+                manifest_item.date_of_acquisition.split(" ")[0],
                 "%Y-%m-%d"
                 ),
             #TODO: add DISCRETE_VISUAL_BEHAVIOR to task.py in brainsets
             task = None,
             image_set = manifest_item.image_set,
             channel_count = manifest_item.channel_count,
-            prior_exposure_to_image_set = manifest_item.prior_exposure_to_image_set,
+            prior_exposure_to_image_set = manifest_item.prior_exposures_to_image_set,
             experience_level = manifest_item.experience_level,
             # Structure acronmys and others may be useful
             )
