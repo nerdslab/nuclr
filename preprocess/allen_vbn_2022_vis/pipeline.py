@@ -30,12 +30,22 @@ parser = ArgumentParser()
 parser.add_argument("--reprocess", action="store_true")
 
 # Unit filtering configuration 
-# Can call like: --isi-violations-max 0.3 --presence-ratio-min 0.95
-DEFAULT_FILTERS = ["isi_violations", "amplitude_cutoff", "presence_ratio"]
+# Can override like: --isi-violations-max 0.3 --presence-ratio-min 0.95
+DEFAULT_FILTERS = [
+    "isi_violations",
+    "amplitude_cutoff", 
+    "presence_ratio", 
+    "firing_rate", 
+    "quality", 
+    "snr"
+    ]
 FILTER_SPECS = {
     "isi_violations": {"arg": "isi_violations_max", "default": 0.5},
     "amplitude_cutoff": {"arg": "amplitude_cutoff_max", "default": 0.1},
     "presence_ratio": {"arg": "presence_ratio_min", "default": 0.9},
+    "firing_rate" : {"arg" : "firing_rate", "default": 0.1},
+    "quality" : {"arg" : "quality" , "default" : "good"},
+    "snr" : {"arg" : "snr" , "default" : 1.0}
 }
 for name, spec in FILTER_SPECS.items():
     cli_flag = "--" + spec["arg"].replace("_", "-")

@@ -22,7 +22,10 @@ def extract_units(session : pd.DataFrame, unit_filter_config):
     unit_mask = (
         (units.isi_violations < unit_filter_config["isi_violations"]) &
         (units.amplitude_cutoff < unit_filter_config["amplitude_cutoff"]) &
-        (units.presence_ratio > unit_filter_config["presence_ratio"])
+        (units.presence_ratio > unit_filter_config["presence_ratio"]) &
+        (units.firing_rate > unit_filter_config["firing_rate"]) & 
+        (units.quality == unit_filter_config["quality"]) & 
+        (units.snr > unit_filter_config["snr"])
     )
     # Filter to visual cortex only 
     vis_mask = units["structure_acronym"].astype(str).str.startswith("VIS")
@@ -70,15 +73,64 @@ def extract_spikes(session : pd.DataFrame, selected_units : pd.DataFrame):
     return spikes, units
 
 def interval_sorter(session):
-    # Should be stored as a Data object
-    # Used as downstream information for which windows are valid to select
-    # from for temporaldata operations (e.g., AND, OR)
-    # we encode task label and intervals for that task
+    # Data object for storing task intervals
+    # Useful for downstream window selection
+    stimulus_table = session.stimulus_presentations
+    
+    # Active
+    active_rows = stimulus_table[stimulus_table["stimulus_block"] == 0]
+    active_intervals = Interval(
+        start = np.array([active_rows["start_time"].min()]),
+        end = np.array([active_rows["end_time"].max()]),
+        block = np.array([0]),
+        task = np.array(["active_behavior"]),
+        stimulus_name = np.array([active_rows["stimulus_name"].iloc[0]]).astype(str)
+    )
 
-    # TODO: More task intervals
+    # Spontaneous
+    spontaneous_rows = stimulus_table[stimulus_table["stimulus_block"].isin([1, 3])]
+    spontaneous_intervals = Interval(
+        start=spontaneous_rows["start_time"].values,
+        end=spontaneous_rows["end_time"].values,
+        block=spontaneous_rows["stimulus_block"].values,
+        task=np.array(["spontaneous"] * len(spontaneous_rows)),
+        stimulus_name=spontaneous_rows["stimulus_name"].values.astype(str),
+        duration=spontaneous_rows["duration"].values,
+    )
 
+    # Gabor
+    gabor_rows = stimulus_table[stimulus_table["stimulus_block"] == 2]
+    gabor_intervals = Interval(
+        start = np.array([gabor_rows["start_time"].min()]),
+        end = np.array([gabor_rows["end_time"].max()]),
+        block = np.array([2]),
+        task = np.array(["gabor"]),
+        stimulus_name = np.array([gabor_rows["stimulus_name"].iloc[0]]).astype(str),
+    )
+
+    # Flash
+    flash_rows = stimulus_table[stimulus_table["stimulus_block"] == 4]
+    flash_intervals = Interval(
+        start = np.array([flash_rows["start_time"].min()]),
+        end = np.array([flash_rows["end_time"].max()]),
+        block = np.array([4]),
+        task = np.array(["flash"]),
+        stimulus_name = np.array([flash_rows["stimulus_name"].iloc[0]]).astype(str),
+    )
+
+    # Passive
+    passive_rows = stimulus_table[stimulus_table["stimulus_block"] == 5]
+    passive_intervals = Interval(
+        start=np.array([passive_rows["start_time"].min()]),
+        end=np.array([passive_rows["end_time"].max()]),
+        block=np.array([5]),
+        task=np.array(["passive_replay"]),
+        stimulus_name=np.array([passive_rows["stimulus_name"].iloc[0]]).astype(str),
+    )
+
+    # Optotagging
     optotagging_table = session.optotagging_table
-    opto_intervals = Interval(
+    optotagging_intervals = Interval(
         start = optotagging_table["start_time"].values,
         end = optotagging_table["stop_time"].values,
         laser_type = optotagging_table["stimulus_name"].values.astype(str),
@@ -87,17 +139,21 @@ def interval_sorter(session):
     )
     
     intervals = Data(
-        optotagging = opto_intervals,
+        active = active_intervals,
+        spontaneous = spontaneous_intervals,
+        gabor= gabor_intervals,
+        flash = flash_intervals,
+        passive = passive_intervals,
+        optotagging = optotagging_intervals,
         domain = "auto"
     )
 
     return intervals
 
 def domain_setter(spikes, intervals, safety_time):
-    # Get first spike in session
-    start_time = spikes.domain.start[0]
-    # Get the time before optotagging task
-    end_time = intervals.optotagging.start[0] - safety_time
+    # Get first and last spike in session
+    start_time = spikes.domain.start[0] + safety_time
+    end_time = spikes.domain.end[0] - safety_time
 
     domain = Interval(
         start = start_time,
@@ -117,6 +173,6 @@ def extract_session_data(session, manifest_item, unit_filter_config):
     intervals = interval_sorter(session)
 
     # Calculate domain
-    domain = domain_setter(spikes, intervals, 300) # 300s before optotagging
+    domain = domain_setter(spikes, intervals, 0)
 
     return units, spikes, intervals, domain
