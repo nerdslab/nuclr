@@ -40,16 +40,16 @@ DEFAULT_FILTERS = [
     "snr"
     ]
 FILTER_SPECS = {
-    "isi_violations": {"arg": "isi_violations_max", "default": 0.5},
-    "amplitude_cutoff": {"arg": "amplitude_cutoff_max", "default": 0.1},
-    "presence_ratio": {"arg": "presence_ratio_min", "default": 0.9},
-    "firing_rate" : {"arg" : "firing_rate", "default": 0.1},
-    "quality" : {"arg" : "quality" , "default" : "good"},
-    "snr" : {"arg" : "snr" , "default" : 1.0}
+    "isi_violations": {"arg": "isi_violations_max", "default": 0.5, "type": float},
+    "amplitude_cutoff": {"arg": "amplitude_cutoff_max", "default": 0.1, "type": float},
+    "presence_ratio": {"arg": "presence_ratio_min", "default": 0.9, "type": float},
+    "firing_rate" : {"arg" : "firing_rate", "default": 0.1, "type": float},
+    "quality" : {"arg" : "quality" , "default" : "good", "type": str},
+    "snr" : {"arg" : "snr" , "default" : 1.0, "type": float}
 }
 for name, spec in FILTER_SPECS.items():
     cli_flag = "--" + spec["arg"].replace("_", "-")
-    parser.add_argument(cli_flag, type=float, default=spec["default"])
+    parser.add_argument(cli_flag, type=spec["type"], default=spec["default"])
 
 class Pipeline(BrainsetPipeline):
     brainset_id = "allen_vbn_2022"
