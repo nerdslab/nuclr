@@ -93,6 +93,18 @@ def interval_sorter(session):
 
     return intervals
 
+def domain_setter(spikes, intervals, safety_time):
+    # Get first spike in session
+    start_time = spikes.domain.start[0]
+    # Get the time before optotagging task
+    end_time = intervals.optotagging.start[0] - safety_time
+
+    domain = Interval(
+        start = start_time,
+        end = end_time
+    )
+    return domain
+
 def extract_session_data(session, manifest_item, unit_filter_config):
 
     # Find units
@@ -105,7 +117,6 @@ def extract_session_data(session, manifest_item, unit_filter_config):
     intervals = interval_sorter(session)
 
     # Calculate domain
-    domain = Interval(start = spikes.domain.start[0], # Beginning of image change task
-                      end = intervals.optotagging.end[-1]) # End of optotagging task
+    domain = domain_setter(spikes, intervals, 300) # 300s before optotagging
 
     return units, spikes, intervals, domain
