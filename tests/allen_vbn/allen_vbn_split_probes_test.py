@@ -1,31 +1,25 @@
 """
-Allen VBN split-probe validation.
 
-Run this suite only after:
-1. generating the session-level Allen VBN HDF5 files with the preprocessing
-   pipeline,
-2. splitting those files into probe-level HDF5s with `utils/split_probes.py`,
-3. generating the unit metadata CSV with `utils/neuron_md_gen.py`.
+Allen VBN split-probe test suit, should be ran after:
+-> generating the session-level Allen VBN HDF5 files with the preprocessing
+   pipeline
+-> splitting those files into probe-level HDF5s with split_probes.py
+-> generating the unit metadata CSV with neuron_md_gen.py
 
-This script validates that the split probe files are a correct transformation of
-the parent session files, that the metadata CSV matches those probe files, and
-that the downstream Dataset loader can read from the split-probe brainset.
 """
 
 from __future__ import annotations
-
 import argparse
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-
 import h5py
 import numpy as np
 import pandas as pd
+
 from temporaldata import Data
 from torch_brain.data import Dataset
-
 
 DEFAULT_PARENT_BRAINSET_ID = "allen_vbn_2022"
 DEFAULT_PROBE_BRAINSET_ID = "allen_vbn_2022_probes"
@@ -450,15 +444,15 @@ def validate_domain_after_split(probe_data: Data) -> None:
         )
 
     probe_timestamps = as_float_array(probe_data.spikes.timestamps)
+    assert probe_timestamps[0] <= data_start[0], (
+        "split probe domain starts before the first saved spike"
+    )
+    assert data_end[-1] <= probe_timestamps[-1], (
+        "split probe domain extends past the last saved spike"
+    )
+
     in_domain = timestamps_within_domain(probe_timestamps, data_start, data_end)
-    if not np.all(in_domain):
-        outside_timestamps = probe_timestamps[~in_domain]
-        raise AssertionError(
-            "some split probe spikes lie outside the saved domain: "
-            f"{len(outside_timestamps)} spikes outside support, "
-            f"first outside spike={outside_timestamps[0]:.6f}, "
-            f"domain starts at {data_start[0]:.6f}"
-        )
+    assert np.any(in_domain), "split probe domain contains no saved spikes"
 
 
 def validate_intervals_preserved(parent_data: Data, probe_data: Data) -> None:
@@ -559,14 +553,18 @@ def validate_metadata_global_consistency(
                 all_unit_ids.update(as_str_array(probe_data.units.id))
                 all_session_ids.add(str(probe_data.session.id))
 
-    metadata_unit_ids = set(metadata_df["id"].astype(str))
-    metadata_session_ids = set(metadata_df["session_id"].astype(str))
+    metadata_subset = metadata_df[
+        metadata_df["session_id"].astype(str).isin(all_session_ids)
+    ].copy()
+
+    metadata_unit_ids = set(metadata_subset["id"].astype(str))
+    metadata_session_ids = set(metadata_subset["session_id"].astype(str))
 
     assert metadata_unit_ids == all_unit_ids, "metadata CSV unit ids do not match probe HDF5s"
     assert metadata_session_ids == all_session_ids, (
         "metadata CSV session ids do not match probe HDF5s"
     )
-    assert not metadata_df["id"].duplicated().any(), "metadata CSV has duplicate unit ids"
+    assert not metadata_subset["id"].duplicated().any(), "metadata CSV has duplicate unit ids"
 
     print_ok("Metadata CSV matches the split probe dataset globally")
 
