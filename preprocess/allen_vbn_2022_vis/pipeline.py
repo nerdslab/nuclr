@@ -140,7 +140,7 @@ class Pipeline(BrainsetPipeline):
 
         # Subject Description
         subject_description = SubjectDescription(
-            id = manifest_item.mouse_id.astype(str),
+            id = str(manifest_item.mouse_id),
             species = Species.MUS_MUSCULUS,
             genotype = manifest_item.genotype,
             sex = (Sex.MALE if manifest_item.sex == "M" else Sex.FEMALE),
