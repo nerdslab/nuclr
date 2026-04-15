@@ -33,8 +33,17 @@ DEFAULT_BRAINSET_ID = "allen_vbn_2022"
 DEFAULT_METADATA_CSV = "allen_vbn_2022.csv"
 ALLOWED_CELL_TYPES = {"wt", "Sst", "Vip"}
 NON_WT_CELL_TYPES = {"Sst", "Vip"}
-REQUIRED_UNIT_FIELDS = {"cre_positive", "optotagged_cell_type"}
-REQUIRED_METADATA_FIELDS = {"id", "optotagged_cell_type"}
+REQUIRED_OPTO_FIELDS = {
+    "optotagging_baseline_rate",
+    "optotagging_evoked_rate",
+    "optotagging_response_ratio",
+    "optotagging_trial_reliability",
+    "optotagging_first_spike_latency_ms",
+    "optotagging_cre_positive",
+    "optotagged_cell_type",
+}
+REQUIRED_UNIT_FIELDS = REQUIRED_OPTO_FIELDS | {"cre_positive"}
+REQUIRED_METADATA_FIELDS = REQUIRED_OPTO_FIELDS | {"id"}
 DEFAULT_MAX_POSITIVE_FRACTION = 0.75
 
 
@@ -311,16 +320,61 @@ def test_processed_h5_optotagging_unit_fields(
 
         with open_data(path, lazy=True) as data:
             unit_ids = as_str_array(data.units.id)
+            optotagging_cre_positive = as_bool_array(
+                data.units.optotagging_cre_positive
+            )
             cre_positive = as_bool_array(data.units.cre_positive)
             cell_types = as_str_array(data.units.optotagged_cell_type)
+            baseline_rate = as_array(data.units.optotagging_baseline_rate).astype(float)
+            evoked_rate = as_array(data.units.optotagging_evoked_rate).astype(float)
+            response_ratio = as_array(
+                data.units.optotagging_response_ratio
+            ).astype(float)
+            trial_reliability = as_array(
+                data.units.optotagging_trial_reliability
+            ).astype(float)
+            first_spike_latency_ms = as_array(
+                data.units.optotagging_first_spike_latency_ms
+            ).astype(float)
             genotype = standardize_genotype(scalar_to_str(data.subject.genotype))
 
             assert len(unit_ids) > 0, f"{path.name} has no saved units"
-            assert len(cre_positive) == len(unit_ids), (
-                f"{path.name} cre_positive length does not match units.id"
+            field_lengths = {
+                "cre_positive": len(cre_positive),
+                "optotagging_cre_positive": len(optotagging_cre_positive),
+                "optotagged_cell_type": len(cell_types),
+                "optotagging_baseline_rate": len(baseline_rate),
+                "optotagging_evoked_rate": len(evoked_rate),
+                "optotagging_response_ratio": len(response_ratio),
+                "optotagging_trial_reliability": len(trial_reliability),
+                "optotagging_first_spike_latency_ms": len(first_spike_latency_ms),
+            }
+            for field_name, field_length in field_lengths.items():
+                assert field_length == len(unit_ids), (
+                    f"{path.name} {field_name} length does not match units.id"
+                )
+
+            assert np.array_equal(cre_positive, optotagging_cre_positive), (
+                f"{path.name} cre_positive alias does not match "
+                "optotagging_cre_positive"
             )
-            assert len(cell_types) == len(unit_ids), (
-                f"{path.name} optotagged_cell_type length does not match units.id"
+            assert np.all(np.isfinite(baseline_rate)), (
+                f"{path.name} baseline rates contain non-finite values"
+            )
+            assert np.all(np.isfinite(evoked_rate)), (
+                f"{path.name} evoked rates contain non-finite values"
+            )
+            assert np.all(np.isfinite(response_ratio)), (
+                f"{path.name} response ratios contain non-finite values"
+            )
+            assert np.all(baseline_rate >= 0), f"{path.name} has negative baselines"
+            assert np.all(evoked_rate >= 0), f"{path.name} has negative evoked rates"
+            assert np.all(response_ratio >= 0), f"{path.name} has negative ratios"
+            assert np.all(
+                (trial_reliability >= 0) & (trial_reliability <= 1)
+            ), f"{path.name} reliability values are outside [0, 1]"
+            assert np.all(np.isfinite(first_spike_latency_ms[cre_positive])), (
+                f"{path.name} positive units have missing first-spike latencies"
             )
 
             observed_labels = set(cell_types)
@@ -335,6 +389,16 @@ def test_processed_h5_optotagging_unit_fields(
             assert not incompatible_labels, (
                 f"{path.name} has labels incompatible with genotype {genotype}: "
                 f"{sorted(incompatible_labels)}"
+            )
+            assert not np.any(cre_positive) or genotype != "wt", (
+                f"{path.name} has optotagged Cre+ units in a wt session"
+            )
+
+            expected_cell_types = np.full(len(unit_ids), "wt", dtype=object)
+            expected_cell_types[cre_positive] = genotype
+            assert np.array_equal(cell_types, expected_cell_types), (
+                f"{path.name} optotagged_cell_type does not match "
+                "optotagging_cre_positive"
             )
 
             summary.session_count += 1
@@ -414,7 +478,6 @@ def collect_h5_unit_labels(
     for path in h5_paths:
         with open_data(path, lazy=True) as data:
             unit_ids = as_str_array(data.units.id)
-            cell_types = as_str_array(data.units.optotagged_cell_type)
             session_id = scalar_to_str(data.session.id)
             subject_id = scalar_to_str(data.subject.id)
 
@@ -422,8 +485,13 @@ def collect_h5_unit_labels(
                 "id": unit_ids,
                 "session_id": np.array([session_id] * len(unit_ids)),
                 "subject_id": np.array([subject_id] * len(unit_ids)),
-                "optotagged_cell_type": cell_types,
             }
+            for field_name in REQUIRED_OPTO_FIELDS:
+                value = getattr(data.units, field_name)
+                if field_name == "optotagged_cell_type":
+                    row_data[field_name] = as_str_array(value)
+                else:
+                    row_data[field_name] = as_array(value)
 
             if "cre_positive" in set(data.units.keys()):
                 has_cre_positive = True
@@ -455,10 +523,24 @@ def test_metadata_preserves_optotagging_fields(
     metadata_subset = metadata_subset.set_index("id").sort_index()
     h5_labels = h5_labels.set_index("id").sort_index()
 
-    assert np.array_equal(
-        metadata_subset["optotagged_cell_type"].astype(str).values,
-        h5_labels["optotagged_cell_type"].astype(str).values,
-    ), "metadata optotagged_cell_type values do not match HDF5 labels"
+    for field_name in sorted(REQUIRED_OPTO_FIELDS):
+        if field_name == "optotagged_cell_type":
+            assert np.array_equal(
+                metadata_subset[field_name].astype(str).values,
+                h5_labels[field_name].astype(str).values,
+            ), f"metadata {field_name} values do not match HDF5 labels"
+        elif field_name == "optotagging_cre_positive":
+            metadata_values = as_bool_array(metadata_subset[field_name].values)
+            h5_values = as_bool_array(h5_labels[field_name].values)
+            assert np.array_equal(metadata_values, h5_values), (
+                f"metadata {field_name} values do not match HDF5 labels"
+            )
+        else:
+            metadata_values = pd.to_numeric(metadata_subset[field_name]).to_numpy()
+            h5_values = pd.to_numeric(h5_labels[field_name]).to_numpy()
+            assert np.allclose(metadata_values, h5_values, equal_nan=True), (
+                f"metadata {field_name} values do not match HDF5 labels"
+            )
 
     if h5_has_cre_positive:
         metadata_cre_positive = as_bool_array(metadata_subset["cre_positive"].values)

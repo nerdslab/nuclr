@@ -61,6 +61,8 @@ DEFAULT_TAGGING_PARAMS = [
     "baseline_end_ms",
     "evoked_start_ms",
     "evoked_end_ms",
+    "min_trial_reliability",
+    "max_first_spike_latency_ms",
     "max_pulse_duration",
     "pulse_level",
 ]
@@ -74,6 +76,16 @@ TAGGING_SPECS = {
     "baseline_end_ms": {"arg": "tagging_baseline_end_ms", "default": -2.0, "type": float},
     "evoked_start_ms": {"arg": "tagging_evoked_start_ms", "default": 1.0, "type": float},
     "evoked_end_ms": {"arg": "tagging_evoked_end_ms", "default": 9.0, "type": float},
+    "min_trial_reliability": {
+        "arg": "tagging_min_trial_reliability",
+        "default": 0.3,
+        "type": float,
+    },
+    "max_first_spike_latency_ms": {
+        "arg": "tagging_max_first_spike_latency_ms",
+        "default": 9.0,
+        "type": float,
+    },
     "max_pulse_duration": {"arg": "tagging_max_pulse_duration", "default": 0.1, "type": float},
     "pulse_level": {"arg": "tagging_pulse_level", "default": 1.7, "type": float},
 }

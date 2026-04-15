@@ -80,7 +80,61 @@ def standardize_genotype(genotype):
         return "Vip"
     return "wt"
 
-def add_cell_types(units, spike_times_by_unit, optotagging_table, tagging_config : dict, genotype_label):
+
+def compute_trial_reliability_and_latency(
+    spike_times_by_unit,
+    unit_ids,
+    pulse_times,
+    evoked_start_s,
+    evoked_end_s,
+):
+    """
+    Compute trial-level optotagging consistency for each unit.
+
+    Reliability is the fraction of selected laser pulses that evoke at least one
+    spike in the configured evoked window. Latency is the mean first-spike time,
+    in milliseconds after laser onset, over trials with at least one evoked
+    spike. Trials without evoked spikes are excluded from the latency average
+    and contribute only to lower reliability.
+    """
+    unit_ids = list(unit_ids)
+    n_trials = len(pulse_times)
+    reliability = np.zeros(len(unit_ids), dtype=float)
+    first_spike_latency_ms = np.full(len(unit_ids), np.nan, dtype=float)
+
+    # No trials
+    if n_trials == 0:
+        return reliability, first_spike_latency_ms
+
+    # Calculate reliability & FSL
+    for unit_idx, unit_id in enumerate(unit_ids):
+        spikes = spike_times_by_unit.get(unit_id)
+        if spikes is None or len(spikes) == 0:
+            continue
+
+        first_spikes = []
+        for pulse_time in pulse_times:
+            evoked_spikes = spikes[
+                (spikes >= pulse_time + evoked_start_s) &
+                (spikes < pulse_time + evoked_end_s)
+            ]
+            if len(evoked_spikes) > 0:
+                first_spikes.append(float(np.min(evoked_spikes) - pulse_time))
+
+        reliability[unit_idx] = len(first_spikes) / n_trials
+        if first_spikes:
+            first_spike_latency_ms[unit_idx] = np.mean(first_spikes) * 1000
+
+    return reliability, first_spike_latency_ms
+
+
+def add_cell_types(
+    units,
+    spike_times_by_unit,
+    optotagging_table,
+    tagging_config: dict,
+    genotype_label,
+):
     units = units.copy()
 
     # Determine genotype
@@ -97,12 +151,16 @@ def add_cell_types(units, spike_times_by_unit, optotagging_table, tagging_config
     baseline_end_ms = tagging_config.get("baseline_end_ms")
     evoked_start_ms = tagging_config.get("evoked_start_ms")
     evoked_end_ms = tagging_config.get("evoked_end_ms")
+    min_trial_reliability = tagging_config.get("min_trial_reliability", 0.0)
+    max_first_spike_latency_ms = tagging_config.get(
+        "max_first_spike_latency_ms",
+        None
+    )
     # Laser settings
     max_pulse_duration = tagging_config.get("max_pulse_duration")
     pulse_level = tagging_config.get("pulse_level")
-    # TODO: add more parameters for better classification
 
-    # Find start times of pulses 
+    # Find start times of pulses
     selected_pulses = optotagging_table[
         optotagging_table["duration"] <= max_pulse_duration
     ]
@@ -112,42 +170,76 @@ def add_cell_types(units, spike_times_by_unit, optotagging_table, tagging_config
         np.isclose(selected_pulses["level"], pulse_level)
     ]
     pulse_times = selected_pulses['start_time'].values
+    unit_ids = list(units.index)
+    n_units = len(unit_ids)
 
     # Create population PSTH 
     # optotagging array (units x bins x trials)
     opto_array, time_bins, unit_ids = make_population_psth(
-        spike_times_by_unit, units.index, pulse_times, time_before, duration, bin_size
+        spike_times_by_unit, unit_ids, pulse_times, time_before, duration, bin_size
     )
 
-    # Apply filtering to PSTH 
-    # Calculate baseline and evoked time indices
+    # Calculate average baseline and evoked rates from the PSTH
+    # These rates capture response magnitude, while reliability below
+    # captures whether that response is repeatable across laser pulses
     baseline_idx = (
         (time_bins >= baseline_start_ms / 1000) &
         (time_bins < baseline_end_ms / 1000)
     )
-    evoked_idx = (time_bins >= evoked_start_ms / 1000) & \
+    evoked_idx = (
+        (time_bins >= evoked_start_ms / 1000) & 
         (time_bins < evoked_end_ms / 1000)
+    )
 
-    # Mean across all trials for each unit
-    mean_opto = np.nanmean(opto_array, axis = 2) # (units , time_bins)
+    if len(pulse_times) == 0:
+        baseline_rate = np.full(n_units, np.nan)
+        evoked_rate = np.full(n_units, np.nan)
+    else:
+        mean_opto = np.nanmean(opto_array, axis=2) # (units, time_bins)
+        baseline_rate = np.mean(mean_opto[:, baseline_idx], axis=1)
+        evoked_rate = np.mean(mean_opto[:, evoked_idx], axis=1)
 
-    # Calculate spikes / seconds (hz)
-    baseline_rate = np.mean(mean_opto[: , baseline_idx], axis = 1)
-    evoked_rate = np.mean(mean_opto[:, evoked_idx], axis = 1)
+    response_ratio = evoked_rate / (baseline_rate + 1)
 
-    # Classify from chosen parameters
+    trial_reliability, first_spike_latency_ms = compute_trial_reliability_and_latency(
+        spike_times_by_unit=spike_times_by_unit,
+        unit_ids=unit_ids,
+        pulse_times=pulse_times,
+        evoked_start_s=evoked_start_ms / 1000,
+        evoked_end_s=evoked_end_ms / 1000,
+    )
+
+    # A unit is optotagged only if it has a large, baseline-relative evoked
+    # response that is repeatable across pulses and fast enough to be consistent
+    # with direct optogenetic activation.
+    latency_gate = np.ones(n_units, dtype=bool)
+    if max_first_spike_latency_ms is not None:
+        latency_gate = (
+            np.isfinite(first_spike_latency_ms) &
+            (first_spike_latency_ms <= max_first_spike_latency_ms)
+        )
+
     cre_pos_idx = (
+        (genotype != "wt") &
         (evoked_rate > min_evoked_rate) &
-        ((evoked_rate / (baseline_rate + 1)) > increase_in_fr)
+        (response_ratio > increase_in_fr) &
+        (trial_reliability >= min_trial_reliability) &
+        latency_gate
     )
 
     optotagged_cell_type = np.full(len(units), "wt", dtype=object)
-    if genotype != "wt":
-        optotagged_cell_type[cre_pos_idx] = genotype
+    optotagged_cell_type[cre_pos_idx] = genotype
 
-    units["cre_positive"] = genotype != "wt"
+    units["optotagging_baseline_rate"] = baseline_rate
+    units["optotagging_evoked_rate"] = evoked_rate
+    units["optotagging_response_ratio"] = response_ratio
+    units["optotagging_trial_reliability"] = trial_reliability
+    units["optotagging_first_spike_latency_ms"] = first_spike_latency_ms
+    units["optotagging_cre_positive"] = cre_pos_idx
+    # Keep the existing column name as a per-unit compatibility alias.
+    units["cre_positive"] = cre_pos_idx
     units["optotagged_cell_type"] = optotagged_cell_type
-    
+
     return units
 
 def make_population_psth(spike_times_by_unit, unit_ids, start_times, time_before, duration, bin_size,
