@@ -24,8 +24,7 @@ class AllenVB2022VisEvaluator():
         df = pd.read_csv("./neuron_metadata/allen_vbn_2022.csv")
         df["unit_id"] = df["id"].astype(str)
         df["brain_region"] = df["structure_acronym"]
-        # TODO: Allen VC uses df.lolcat_celltype, but what should VB use? 
-        # df["cell_type"] = df.lolcat_celltype
+        df["cell_type"] = df.optotagged_cell_type
         return df.set_index("unit_id")
     
     def __call__(
@@ -49,6 +48,7 @@ class AllenVB2022VisEvaluator():
         val_md = self.md.loc[val_unit_ids]
 
         # Banned brain regions left empty for now
+        # TODO: should investigate which brain regions are lower quality
         banned_brs = []
         self.futures = []
 

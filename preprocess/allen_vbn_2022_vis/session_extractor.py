@@ -72,6 +72,124 @@ def extract_spikes(session : pd.DataFrame, selected_units : pd.DataFrame):
 
     return spikes, units
 
+def standardize_genotype(genotype):
+    genotype = str(genotype).lower()
+    if "sst" in genotype:
+        return "Sst"
+    if "vip" in genotype:
+        return "Vip"
+    return "wt"
+
+def add_cell_types(units, spike_times_by_unit, optotagging_table, tagging_config : dict, genotype_label):
+    units = units.copy()
+
+    # Determine genotype
+    genotype = standardize_genotype(genotype_label)
+
+    # PSTH settings
+    time_before = tagging_config.get("time_before")
+    duration = tagging_config.get("duration")
+    bin_size = tagging_config.get("bin_size")
+    # Tagging settings
+    increase_in_fr = tagging_config.get("increase_in_fr")
+    min_evoked_rate = tagging_config.get("min_evoked_rate")
+    baseline_start_ms = tagging_config.get("baseline_start_ms")
+    baseline_end_ms = tagging_config.get("baseline_end_ms")
+    evoked_start_ms = tagging_config.get("evoked_start_ms")
+    evoked_end_ms = tagging_config.get("evoked_end_ms")
+    # Laser settings
+    max_pulse_duration = tagging_config.get("max_pulse_duration")
+    pulse_level = tagging_config.get("pulse_level")
+    # TODO: add more parameters for better classification
+
+    # Find start times of pulses 
+    selected_pulses = optotagging_table[
+        optotagging_table["duration"] <= max_pulse_duration
+    ]
+    if pulse_level is None:
+        pulse_level = selected_pulses["level"].max()
+    selected_pulses = selected_pulses[
+        np.isclose(selected_pulses["level"], pulse_level)
+    ]
+    pulse_times = selected_pulses['start_time'].values
+
+    # Create population PSTH 
+    # optotagging array (units x bins x trials)
+    opto_array, time_bins, unit_ids = make_population_psth(
+        spike_times_by_unit, units.index, pulse_times, time_before, duration, bin_size
+    )
+
+    # Apply filtering to PSTH 
+    # Calculate baseline and evoked time indices
+    baseline_idx = (
+        (time_bins >= baseline_start_ms / 1000) &
+        (time_bins < baseline_end_ms / 1000)
+    )
+    evoked_idx = (time_bins >= evoked_start_ms / 1000) & \
+        (time_bins < evoked_end_ms / 1000)
+
+    # Mean across all trials for each unit
+    mean_opto = np.nanmean(opto_array, axis = 2) # (units , time_bins)
+
+    # Calculate spikes / seconds (hz)
+    baseline_rate = np.mean(mean_opto[: , baseline_idx], axis = 1)
+    evoked_rate = np.mean(mean_opto[:, evoked_idx], axis = 1)
+
+    # Classify from chosen parameters
+    cre_pos_idx = (
+        (evoked_rate > min_evoked_rate) &
+        ((evoked_rate / (baseline_rate + 1)) > increase_in_fr)
+    )
+
+    optotagged_cell_type = np.full(len(units), "wt", dtype=object)
+    if genotype != "wt":
+        optotagged_cell_type[cre_pos_idx] = genotype
+
+    units["cre_positive"] = genotype != "wt"
+    units["optotagged_cell_type"] = optotagged_cell_type
+    
+    return units
+
+def make_population_psth(spike_times_by_unit, unit_ids, start_times, time_before, duration, bin_size,
+                         mean_over_trials=False):
+    """
+    Population level of make_psth function.
+
+    Parameters
+    ----------
+    mean_over_trials : bool
+        If True, return shape (n_units, n_bins) averaged over trials instead of
+        the full (n_units, n_bins, n_trials) array.  Use this in batch scripts
+        to avoid allocating the full 3-D array in memory.
+    """
+    bins = np.arange(-time_before, duration - time_before + bin_size, bin_size)
+    n_bins = len(bins) - 1
+    n_trials = len(start_times)
+    unit_ids = list(unit_ids)
+
+    if mean_over_trials:
+        psth_array = np.zeros((len(unit_ids), n_bins))
+        for i, uid in enumerate(unit_ids):
+            spikes = spike_times_by_unit.get(uid)
+            if spikes is None:
+                continue
+            for t in start_times:
+                window_spikes = spikes[(spikes >= t - time_before) & (spikes < t + duration - time_before)]
+                psth_array[i] += np.histogram(window_spikes - t, bins=bins)[0] / bin_size
+        psth_array /= n_trials
+        return psth_array, bins[:-1], unit_ids
+
+    psth_array = np.zeros((len(unit_ids), n_bins, n_trials))
+    for i, uid in enumerate(unit_ids):
+        spikes = spike_times_by_unit.get(uid)
+        if spikes is None:
+            continue
+        for j, t in enumerate(start_times):
+            window_spikes = spikes[(spikes >= t - time_before) & (spikes < t + duration - time_before)]
+            psth_array[i, :, j] = np.histogram(window_spikes - t, bins=bins)[0] / bin_size
+
+    return psth_array, bins[:-1], unit_ids
+
 def interval_sorter(session):
     # Data object for storing task intervals
     # Useful for downstream window selection
@@ -161,13 +279,18 @@ def domain_setter(spikes, intervals, safety_time):
     )
     return domain
 
-def extract_session_data(session, manifest_item, unit_filter_config):
+def extract_session_data( session, manifest_item, unit_filter_config, tagging_config, genotype):
 
     # Find units
     selected_units = extract_units(session, unit_filter_config)
+
+    # Classify unit cell types
+    classified_units = add_cell_types(
+        selected_units, session.spike_times, session.optotagging_table, tagging_config, genotype
+        )
     
     # Find spikes
-    spikes, units = extract_spikes(session, selected_units)
+    spikes, units = extract_spikes(session, classified_units)
 
     # Find intervals
     intervals = interval_sorter(session)

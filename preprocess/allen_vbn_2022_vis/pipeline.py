@@ -51,6 +51,36 @@ for name, spec in FILTER_SPECS.items():
     cli_flag = "--" + spec["arg"].replace("_", "-")
     parser.add_argument(cli_flag, type=spec["type"], default=spec["default"])
 
+DEFAULT_TAGGING_PARAMS = [
+    "time_before",
+    "duration",
+    "bin_size",
+    "increase_in_fr",
+    "min_evoked_rate",
+    "baseline_start_ms",
+    "baseline_end_ms",
+    "evoked_start_ms",
+    "evoked_end_ms",
+    "max_pulse_duration",
+    "pulse_level",
+]
+TAGGING_SPECS = {
+    "time_before": {"arg": "tagging_time_before", "default": 0.5, "type": float},
+    "duration": {"arg": "tagging_duration", "default": 1.5, "type": float},
+    "bin_size": {"arg": "tagging_bin_size", "default": 0.001, "type": float},
+    "increase_in_fr": {"arg": "tagging_increase_in_fr", "default": 3.0, "type": float},
+    "min_evoked_rate": {"arg": "tagging_min_evoked_rate", "default": 50.0, "type": float},
+    "baseline_start_ms": {"arg": "tagging_baseline_start_ms", "default": -10.0, "type": float},
+    "baseline_end_ms": {"arg": "tagging_baseline_end_ms", "default": -2.0, "type": float},
+    "evoked_start_ms": {"arg": "tagging_evoked_start_ms", "default": 1.0, "type": float},
+    "evoked_end_ms": {"arg": "tagging_evoked_end_ms", "default": 9.0, "type": float},
+    "max_pulse_duration": {"arg": "tagging_max_pulse_duration", "default": 0.1, "type": float},
+    "pulse_level": {"arg": "tagging_pulse_level", "default": 1.7, "type": float},
+}
+for name, spec in TAGGING_SPECS.items():
+    cli_flag = "--" + spec["arg"].replace("_", "-")
+    parser.add_argument(cli_flag, type=spec["type"], default=spec["default"])
+
 class Pipeline(BrainsetPipeline):
     brainset_id = "allen_vbn_2022"
     parser = parser
@@ -112,6 +142,11 @@ class Pipeline(BrainsetPipeline):
             for name in DEFAULT_FILTERS
         }
 
+        tagging_config = {
+            name: getattr(self.args, TAGGING_SPECS[name]["arg"])
+            for name in DEFAULT_TAGGING_PARAMS
+        }
+
         # Set Descriptions
         # Brainset Description
         brainset_description = BrainsetDescription(
@@ -152,7 +187,9 @@ class Pipeline(BrainsetPipeline):
         unit_data, spikes, intervals, domain = extract_session_data(
             session,
             manifest_item, 
-            unit_filter_config
+            unit_filter_config,
+            tagging_config,
+            manifest_item.genotype
             )
 
 
