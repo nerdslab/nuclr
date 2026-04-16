@@ -16,8 +16,10 @@ from pathlib import Path
 import h5py
 import logging
 import datetime
+import sys
 from typing import Literal, get_args
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from session_extractor import extract_session_data
 
 from allensdk.brain_observatory.behavior.behavior_project_cache.\
@@ -64,7 +66,6 @@ DEFAULT_TAGGING_PARAMS = [
     "min_trial_reliability",
     "max_first_spike_latency_ms",
     "max_pulse_duration",
-    "pulse_level",
 ]
 TAGGING_SPECS = {
     "time_before": {"arg": "tagging_time_before", "default": 0.5, "type": float},
@@ -87,7 +88,6 @@ TAGGING_SPECS = {
         "type": float,
     },
     "max_pulse_duration": {"arg": "tagging_max_pulse_duration", "default": 0.1, "type": float},
-    "pulse_level": {"arg": "tagging_pulse_level", "default": 1.7, "type": float},
 }
 for name, spec in TAGGING_SPECS.items():
     cli_flag = "--" + spec["arg"].replace("_", "-")

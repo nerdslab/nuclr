@@ -55,7 +55,11 @@ def repo_root() -> Path:
 PIPELINE_DIR = repo_root() / "preprocess" / "allen_vbn_2022_vis"
 sys.path.insert(0, str(PIPELINE_DIR))
 
-from session_extractor import make_population_psth, standardize_genotype  # noqa: E402
+from session_extractor import (  # noqa: E402
+    add_cell_types,
+    make_population_psth,
+    standardize_genotype,
+)
 
 
 @dataclass
@@ -72,8 +76,104 @@ class OptotaggingSummary:
     )
 
 
+@dataclass
+class ValidationFailure:
+    """One validation failure collected during a batch test run."""
+
+    section: str
+    message: str
+    path: Path | None = None
+    details: str | None = None
+
+    def format(self) -> str:
+        location = f"{self.path.name}: " if self.path is not None else ""
+        detail = f"\n    {self.details}" if self.details else ""
+        return f"[{self.section}] {location}{self.message}{detail}"
+
+
 def print_ok(message: str) -> None:
     print(f"[ok] {message}")
+
+
+def record_failure(
+    failures: list[ValidationFailure],
+    section: str,
+    message: str,
+    *,
+    path: Path | None = None,
+    details: str | None = None,
+) -> None:
+    """Append one failure to the run-level failure list."""
+    failures.append(
+        ValidationFailure(section=section, message=message, path=path, details=details)
+    )
+
+
+def check(
+    condition: bool,
+    failures: list[ValidationFailure],
+    section: str,
+    message: str,
+    *,
+    path: Path | None = None,
+    details: str | None = None,
+) -> bool:
+    """Record a failed condition without stopping the rest of the test run."""
+    if condition:
+        return True
+
+    record_failure(
+        failures,
+        section,
+        message,
+        path=path,
+        details=details,
+    )
+    return False
+
+
+def summarize_numeric_array(
+    values: np.ndarray,
+    unit_ids: np.ndarray,
+    *,
+    max_examples: int = 5,
+) -> str:
+    """Return compact diagnostics for a numeric unit-level field."""
+    values = np.asarray(values)
+    finite = np.isfinite(values)
+    nonfinite_idx = np.flatnonzero(~finite)
+    examples = [
+        f"{unit_ids[idx]}={values[idx]!r}"
+        for idx in nonfinite_idx[:max_examples]
+    ]
+
+    parts = [
+        f"finite={int(finite.sum())}/{values.size}",
+        f"nan={int(np.isnan(values).sum())}",
+        f"+inf={int(np.isposinf(values).sum())}",
+        f"-inf={int(np.isneginf(values).sum())}",
+    ]
+    if examples:
+        parts.append(f"examples: {', '.join(examples)}")
+
+    return "; ".join(parts)
+
+
+def print_failure_summary(failures: list[ValidationFailure]) -> None:
+    """Print all collected failures in a stable, scan-friendly summary."""
+    if not failures:
+        return
+
+    print("\nAllen VBN optotagging validation failed")
+    print(f"Collected {len(failures)} failure(s):")
+
+    grouped = Counter((failure.section, failure.message) for failure in failures)
+    print("Failure types:")
+    for (section, message), count in grouped.most_common():
+        print(f"  - {section}: {message} ({count})")
+
+    for idx, failure in enumerate(failures, start=1):
+        print(f"{idx}. {failure.format()}")
 
 
 def default_processed_dir() -> Path:
@@ -309,110 +409,294 @@ def test_make_population_psth_shape_and_binning() -> None:
     print_ok("PSTH shape, binning, and trial averaging are correct")
 
 
+def test_add_cell_types_uses_max_short_pulse_level() -> None:
+    """Validate classification uses each session's strongest short pulse level."""
+    units = pd.DataFrame(index=[101, 202])
+    spike_times_by_unit = {
+        101: np.array([1.002, 2.003]),
+        202: np.array([10.002, 20.003]),
+    }
+    optotagging_table = pd.DataFrame(
+        {
+            "start_time": [1.0, 2.0, 10.0, 20.0, 30.0],
+            "stop_time": [1.01, 2.01, 10.01, 20.01, 31.0],
+            "duration": [0.01, 0.01, 0.01, 0.01, 1.0],
+            "level": [1.35, 1.35, 0.97, 0.97, 1.7],
+        }
+    )
+    tagging_config = {
+        "time_before": 0.01,
+        "duration": 0.03,
+        "bin_size": 0.001,
+        "increase_in_fr": 3.0,
+        "min_evoked_rate": 50.0,
+        "baseline_start_ms": -10.0,
+        "baseline_end_ms": -2.0,
+        "evoked_start_ms": 1.0,
+        "evoked_end_ms": 9.0,
+        "min_trial_reliability": 0.5,
+        "max_first_spike_latency_ms": 9.0,
+        "max_pulse_duration": 0.1,
+    }
+
+    classified_units = add_cell_types(
+        units=units,
+        spike_times_by_unit=spike_times_by_unit,
+        optotagging_table=optotagging_table,
+        tagging_config=tagging_config,
+        genotype_label="Vip-IRES-Cre",
+    )
+
+    assert classified_units.loc[101, "optotagging_cre_positive"], (
+        "unit responding to max short-pulse level was not tagged"
+    )
+    assert not classified_units.loc[202, "optotagging_cre_positive"], (
+        "unit responding only to lower pulse levels was tagged"
+    )
+    assert classified_units.loc[101, "optotagged_cell_type"] == "Vip"
+    assert classified_units.loc[202, "optotagged_cell_type"] == "wt"
+    assert np.isfinite(classified_units["optotagging_baseline_rate"]).all()
+    assert np.isfinite(classified_units["optotagging_evoked_rate"]).all()
+    assert np.isfinite(classified_units["optotagging_response_ratio"]).all()
+
+    print_ok("Cell-type classification uses the max short-pulse level")
+
+
 def test_processed_h5_optotagging_unit_fields(
     h5_paths: list[Path],
-) -> OptotaggingSummary:
+) -> tuple[OptotaggingSummary, list[ValidationFailure]]:
     """Validate optotagging-specific unit fields in processed session HDF5s."""
     summary = OptotaggingSummary()
+    failures: list[ValidationFailure] = []
 
     for path in h5_paths:
-        validate_unit_field_layout(path)
-
-        with open_data(path, lazy=True) as data:
-            unit_ids = as_str_array(data.units.id)
-            optotagging_cre_positive = as_bool_array(
-                data.units.optotagging_cre_positive
+        try:
+            validate_unit_field_layout(path)
+        except AssertionError as exc:
+            record_failure(
+                failures,
+                "processed HDF5 fields",
+                str(exc),
+                path=path,
             )
-            cre_positive = as_bool_array(data.units.cre_positive)
-            cell_types = as_str_array(data.units.optotagged_cell_type)
-            baseline_rate = as_array(data.units.optotagging_baseline_rate).astype(float)
-            evoked_rate = as_array(data.units.optotagging_evoked_rate).astype(float)
-            response_ratio = as_array(
-                data.units.optotagging_response_ratio
-            ).astype(float)
-            trial_reliability = as_array(
-                data.units.optotagging_trial_reliability
-            ).astype(float)
-            first_spike_latency_ms = as_array(
-                data.units.optotagging_first_spike_latency_ms
-            ).astype(float)
-            genotype = standardize_genotype(scalar_to_str(data.subject.genotype))
+            continue
+        except Exception as exc:
+            record_failure(
+                failures,
+                "processed HDF5 fields",
+                f"could not inspect unit field layout: {exc!r}",
+                path=path,
+            )
+            continue
 
-            assert len(unit_ids) > 0, f"{path.name} has no saved units"
-            field_lengths = {
-                "cre_positive": len(cre_positive),
-                "optotagging_cre_positive": len(optotagging_cre_positive),
-                "optotagged_cell_type": len(cell_types),
-                "optotagging_baseline_rate": len(baseline_rate),
-                "optotagging_evoked_rate": len(evoked_rate),
-                "optotagging_response_ratio": len(response_ratio),
-                "optotagging_trial_reliability": len(trial_reliability),
-                "optotagging_first_spike_latency_ms": len(first_spike_latency_ms),
-            }
-            for field_name, field_length in field_lengths.items():
-                assert field_length == len(unit_ids), (
-                    f"{path.name} {field_name} length does not match units.id"
+        try:
+            with open_data(path, lazy=True) as data:
+                unit_ids = as_str_array(data.units.id)
+                optotagging_cre_positive = as_bool_array(
+                    data.units.optotagging_cre_positive
                 )
+                cre_positive = as_bool_array(data.units.cre_positive)
+                cell_types = as_str_array(data.units.optotagged_cell_type)
+                baseline_rate = as_array(
+                    data.units.optotagging_baseline_rate
+                ).astype(float)
+                evoked_rate = as_array(data.units.optotagging_evoked_rate).astype(
+                    float
+                )
+                response_ratio = as_array(
+                    data.units.optotagging_response_ratio
+                ).astype(float)
+                trial_reliability = as_array(
+                    data.units.optotagging_trial_reliability
+                ).astype(float)
+                first_spike_latency_ms = as_array(
+                    data.units.optotagging_first_spike_latency_ms
+                ).astype(float)
+                genotype = standardize_genotype(scalar_to_str(data.subject.genotype))
+        except Exception as exc:
+            record_failure(
+                failures,
+                "processed HDF5 fields",
+                f"could not load optotagging fields: {exc!r}",
+                path=path,
+            )
+            continue
 
-            assert np.array_equal(cre_positive, optotagging_cre_positive), (
-                f"{path.name} cre_positive alias does not match "
-                "optotagging_cre_positive"
+        if not check(
+            len(unit_ids) > 0,
+            failures,
+            "processed HDF5 fields",
+            "has no saved units",
+            path=path,
+        ):
+            continue
+
+        field_lengths = {
+            "cre_positive": len(cre_positive),
+            "optotagging_cre_positive": len(optotagging_cre_positive),
+            "optotagged_cell_type": len(cell_types),
+            "optotagging_baseline_rate": len(baseline_rate),
+            "optotagging_evoked_rate": len(evoked_rate),
+            "optotagging_response_ratio": len(response_ratio),
+            "optotagging_trial_reliability": len(trial_reliability),
+            "optotagging_first_spike_latency_ms": len(first_spike_latency_ms),
+        }
+        lengths_ok = True
+        for field_name, field_length in field_lengths.items():
+            lengths_ok &= check(
+                field_length == len(unit_ids),
+                failures,
+                "processed HDF5 fields",
+                f"{field_name} length does not match units.id",
+                path=path,
+                details=f"{field_name}={field_length}, units.id={len(unit_ids)}",
             )
-            assert np.all(np.isfinite(baseline_rate)), (
-                f"{path.name} baseline rates contain non-finite values"
+        if not lengths_ok:
+            continue
+
+        check(
+            np.array_equal(cre_positive, optotagging_cre_positive),
+            failures,
+            "processed HDF5 fields",
+            "cre_positive alias does not match optotagging_cre_positive",
+            path=path,
+        )
+
+        baseline_finite = check(
+            np.all(np.isfinite(baseline_rate)),
+            failures,
+            "processed HDF5 fields",
+            "baseline rates contain non-finite values",
+            path=path,
+            details=summarize_numeric_array(baseline_rate, unit_ids),
+        )
+        evoked_finite = check(
+            np.all(np.isfinite(evoked_rate)),
+            failures,
+            "processed HDF5 fields",
+            "evoked rates contain non-finite values",
+            path=path,
+            details=summarize_numeric_array(evoked_rate, unit_ids),
+        )
+        ratio_finite = check(
+            np.all(np.isfinite(response_ratio)),
+            failures,
+            "processed HDF5 fields",
+            "response ratios contain non-finite values",
+            path=path,
+            details=summarize_numeric_array(response_ratio, unit_ids),
+        )
+
+        if baseline_finite:
+            check(
+                np.all(baseline_rate >= 0),
+                failures,
+                "processed HDF5 fields",
+                "has negative baseline rates",
+                path=path,
             )
-            assert np.all(np.isfinite(evoked_rate)), (
-                f"{path.name} evoked rates contain non-finite values"
+        if evoked_finite:
+            check(
+                np.all(evoked_rate >= 0),
+                failures,
+                "processed HDF5 fields",
+                "has negative evoked rates",
+                path=path,
             )
-            assert np.all(np.isfinite(response_ratio)), (
-                f"{path.name} response ratios contain non-finite values"
-            )
-            assert np.all(baseline_rate >= 0), f"{path.name} has negative baselines"
-            assert np.all(evoked_rate >= 0), f"{path.name} has negative evoked rates"
-            assert np.all(response_ratio >= 0), f"{path.name} has negative ratios"
-            assert np.all(
-                (trial_reliability >= 0) & (trial_reliability <= 1)
-            ), f"{path.name} reliability values are outside [0, 1]"
-            assert np.all(np.isfinite(first_spike_latency_ms[cre_positive])), (
-                f"{path.name} positive units have missing first-spike latencies"
+        if ratio_finite:
+            check(
+                np.all(response_ratio >= 0),
+                failures,
+                "processed HDF5 fields",
+                "has negative response ratios",
+                path=path,
             )
 
-            observed_labels = set(cell_types)
-            unexpected_labels = observed_labels - ALLOWED_CELL_TYPES
-            assert not unexpected_labels, (
-                f"{path.name} has unexpected optotagged labels: "
-                f"{sorted(unexpected_labels)}"
+        reliability_finite = check(
+            np.all(np.isfinite(trial_reliability)),
+            failures,
+            "processed HDF5 fields",
+            "reliability values contain non-finite values",
+            path=path,
+            details=summarize_numeric_array(trial_reliability, unit_ids),
+        )
+        if reliability_finite:
+            check(
+                np.all((trial_reliability >= 0) & (trial_reliability <= 1)),
+                failures,
+                "processed HDF5 fields",
+                "reliability values are outside [0, 1]",
+                path=path,
             )
 
-            allowed_for_genotype = {"wt"} if genotype == "wt" else {"wt", genotype}
-            incompatible_labels = observed_labels - allowed_for_genotype
-            assert not incompatible_labels, (
-                f"{path.name} has labels incompatible with genotype {genotype}: "
-                f"{sorted(incompatible_labels)}"
-            )
-            assert not np.any(cre_positive) or genotype != "wt", (
-                f"{path.name} has optotagged Cre+ units in a wt session"
-            )
+        positive_latency = first_spike_latency_ms[cre_positive]
+        positive_unit_ids = unit_ids[cre_positive]
+        check(
+            np.all(np.isfinite(positive_latency)),
+            failures,
+            "processed HDF5 fields",
+            "positive units have missing first-spike latencies",
+            path=path,
+            details=summarize_numeric_array(positive_latency, positive_unit_ids),
+        )
 
-            expected_cell_types = np.full(len(unit_ids), "wt", dtype=object)
-            expected_cell_types[cre_positive] = genotype
-            assert np.array_equal(cell_types, expected_cell_types), (
-                f"{path.name} optotagged_cell_type does not match "
-                "optotagging_cre_positive"
-            )
+        observed_labels = set(cell_types)
+        unexpected_labels = observed_labels - ALLOWED_CELL_TYPES
+        check(
+            not unexpected_labels,
+            failures,
+            "processed HDF5 fields",
+            f"has unexpected optotagged labels: {sorted(unexpected_labels)}",
+            path=path,
+        )
 
-            summary.session_count += 1
-            summary.unit_count += len(unit_ids)
-            summary.genotype_session_counts[genotype] += 1
-            summary.genotype_unit_counts[genotype] += len(unit_ids)
-            summary.cell_type_counts.update(cell_types)
-            summary.genotype_cell_type_counts[genotype].update(cell_types)
+        allowed_for_genotype = {"wt"} if genotype == "wt" else {"wt", genotype}
+        incompatible_labels = observed_labels - allowed_for_genotype
+        check(
+            not incompatible_labels,
+            failures,
+            "processed HDF5 fields",
+            f"has labels incompatible with genotype {genotype}: "
+            f"{sorted(incompatible_labels)}",
+            path=path,
+        )
+        check(
+            not np.any(cre_positive) or genotype != "wt",
+            failures,
+            "processed HDF5 fields",
+            "has optotagged Cre+ units in a wt session",
+            path=path,
+        )
 
-    print_ok(
-        f"Validated optotagging unit fields in {summary.session_count} HDF5 files "
-        f"({summary.unit_count:,} units)"
-    )
-    return summary
+        expected_cell_types = np.full(len(unit_ids), "wt", dtype=object)
+        expected_cell_types[cre_positive] = genotype
+        check(
+            np.array_equal(cell_types, expected_cell_types),
+            failures,
+            "processed HDF5 fields",
+            "optotagged_cell_type does not match optotagging_cre_positive",
+            path=path,
+        )
+
+        summary.session_count += 1
+        summary.unit_count += len(unit_ids)
+        summary.genotype_session_counts[genotype] += 1
+        summary.genotype_unit_counts[genotype] += len(unit_ids)
+        summary.cell_type_counts.update(cell_types)
+        summary.genotype_cell_type_counts[genotype].update(cell_types)
+
+    if failures:
+        print(
+            f"[fail] Validated optotagging unit fields in {summary.session_count} "
+            f"HDF5 files ({summary.unit_count:,} units) with "
+            f"{len(failures)} failure(s)"
+        )
+    else:
+        print_ok(
+            f"Validated optotagging unit fields in {summary.session_count} HDF5 files "
+            f"({summary.unit_count:,} units)"
+        )
+    return summary, failures
 
 
 def test_dataset_level_optotagging_counts(
@@ -607,17 +891,62 @@ def main() -> None:
 
     print(f"Validating {len(h5_paths)} Allen VBN optotagging HDF5 file(s)")
 
-    test_standardize_genotype_labels()
-    test_make_population_psth_shape_and_binning()
-    summary = test_processed_h5_optotagging_unit_fields(h5_paths)
-    test_dataset_level_optotagging_counts(
-        summary,
-        max_positive_fraction=args.max_positive_fraction,
-        require_non_wt=not args.allow_no_non_wt,
-    )
+    failures: list[ValidationFailure] = []
+
+    try:
+        test_standardize_genotype_labels()
+    except AssertionError as exc:
+        record_failure(failures, "genotype labels", str(exc))
+    except Exception as exc:
+        record_failure(failures, "genotype labels", f"unexpected error: {exc!r}")
+
+    try:
+        test_make_population_psth_shape_and_binning()
+    except AssertionError as exc:
+        record_failure(failures, "PSTH binning", str(exc))
+    except Exception as exc:
+        record_failure(failures, "PSTH binning", f"unexpected error: {exc!r}")
+
+    try:
+        test_add_cell_types_uses_max_short_pulse_level()
+    except AssertionError as exc:
+        record_failure(failures, "max pulse level selection", str(exc))
+    except Exception as exc:
+        record_failure(
+            failures,
+            "max pulse level selection",
+            f"unexpected error: {exc!r}",
+        )
+
+    summary, h5_failures = test_processed_h5_optotagging_unit_fields(h5_paths)
+    failures.extend(h5_failures)
+
+    try:
+        test_dataset_level_optotagging_counts(
+            summary,
+            max_positive_fraction=args.max_positive_fraction,
+            require_non_wt=not args.allow_no_non_wt,
+        )
+    except AssertionError as exc:
+        record_failure(failures, "global label counts", str(exc))
+    except Exception as exc:
+        record_failure(failures, "global label counts", f"unexpected error: {exc!r}")
 
     if not args.skip_metadata:
-        test_metadata_preserves_optotagging_fields(h5_paths, args.metadata_csv)
+        try:
+            test_metadata_preserves_optotagging_fields(h5_paths, args.metadata_csv)
+        except AssertionError as exc:
+            record_failure(failures, "metadata propagation", str(exc))
+        except Exception as exc:
+            record_failure(
+                failures,
+                "metadata propagation",
+                f"unexpected error: {exc!r}",
+            )
+
+    if failures:
+        print_failure_summary(failures)
+        raise SystemExit(1)
 
     print("Allen VBN optotagging validation passed!")
 

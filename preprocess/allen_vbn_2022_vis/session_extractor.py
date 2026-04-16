@@ -158,17 +158,18 @@ def add_cell_types(
     )
     # Laser settings
     max_pulse_duration = tagging_config.get("max_pulse_duration")
-    pulse_level = tagging_config.get("pulse_level")
 
     # Find start times of pulses
     selected_pulses = optotagging_table[
         optotagging_table["duration"] <= max_pulse_duration
     ]
-    if pulse_level is None:
-        pulse_level = selected_pulses["level"].max()
-    selected_pulses = selected_pulses[
-        np.isclose(selected_pulses["level"], pulse_level)
-    ]
+    if len(selected_pulses) > 0:
+        # Allen sessions use different laser level scales. Always classify from
+        # the strongest short-pulse condition available within each session.
+        max_pulse_level = selected_pulses["level"].max()
+        selected_pulses = selected_pulses[
+            np.isclose(selected_pulses["level"], max_pulse_level)
+        ]
     pulse_times = selected_pulses['start_time'].values
     unit_ids = list(units.index)
     n_units = len(unit_ids)
