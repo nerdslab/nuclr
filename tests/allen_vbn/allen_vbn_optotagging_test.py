@@ -74,6 +74,27 @@ class OptotaggingSummary:
     genotype_cell_type_counts: dict[str, Counter[str]] = field(
         default_factory=lambda: defaultdict(Counter)
     )
+    session_summaries: list["SessionOptotaggingSummary"] = field(
+        default_factory=list
+    )
+
+
+@dataclass
+class SessionOptotaggingSummary:
+    """Optotagging counts for one processed session HDF5."""
+
+    path: Path
+    session_id: str
+    genotype: str
+    unit_count: int
+    positive_count: int
+    cell_type_counts: Counter[str]
+
+    @property
+    def positive_fraction(self) -> float:
+        if self.unit_count == 0:
+            return 0.0
+        return self.positive_count / self.unit_count
 
 
 @dataclass
@@ -492,6 +513,7 @@ def test_processed_h5_optotagging_unit_fields(
         try:
             with open_data(path, lazy=True) as data:
                 unit_ids = as_str_array(data.units.id)
+                session_id = scalar_to_str(data.session.id)
                 optotagging_cre_positive = as_bool_array(
                     data.units.optotagging_cre_positive
                 )
@@ -684,6 +706,16 @@ def test_processed_h5_optotagging_unit_fields(
         summary.genotype_unit_counts[genotype] += len(unit_ids)
         summary.cell_type_counts.update(cell_types)
         summary.genotype_cell_type_counts[genotype].update(cell_types)
+        summary.session_summaries.append(
+            SessionOptotaggingSummary(
+                path=path,
+                session_id=session_id,
+                genotype=genotype,
+                unit_count=len(unit_ids),
+                positive_count=int(np.sum(cre_positive)),
+                cell_type_counts=Counter(cell_types),
+            )
+        )
 
     if failures:
         print(
@@ -736,6 +768,119 @@ def test_dataset_level_optotagging_counts(
         print_ok(f"Global optotagging counts are within sanity bounds ({counts})")
     else:
         print_ok("No non-wt genotype sessions selected; global count check skipped")
+
+
+def describe_count_distribution(counts: list[int]) -> str:
+    """Return a compact distribution summary for per-session positive counts."""
+    if not counts:
+        return "n=0"
+
+    values = np.asarray(counts, dtype=float)
+    return (
+        f"n={len(counts)}, min={int(values.min())}, "
+        f"p25={np.percentile(values, 25):.1f}, "
+        f"median={np.median(values):.1f}, "
+        f"p75={np.percentile(values, 75):.1f}, "
+        f"max={int(values.max())}"
+    )
+
+
+def describe_count_bins(counts: list[int]) -> str:
+    """Return coarse bins for per-session positive unit counts."""
+    bins = {
+        "0": 0,
+        "1": 0,
+        "2-5": 0,
+        "6-10": 0,
+        "11-20": 0,
+        ">20": 0,
+    }
+    for count in counts:
+        if count == 0:
+            bins["0"] += 1
+        elif count == 1:
+            bins["1"] += 1
+        elif count <= 5:
+            bins["2-5"] += 1
+        elif count <= 10:
+            bins["6-10"] += 1
+        elif count <= 20:
+            bins["11-20"] += 1
+        else:
+            bins[">20"] += 1
+
+    return ", ".join(f"{name}={count}" for name, count in bins.items())
+
+
+def format_session_ids(session_ids: list[str], *, max_items: int = 12) -> str:
+    """Format a bounded list of session IDs for terminal summaries."""
+    if not session_ids:
+        return "none"
+
+    shown = session_ids[:max_items]
+    text = ", ".join(shown)
+    remaining = len(session_ids) - len(shown)
+    if remaining > 0:
+        text += f", ... (+{remaining} more)"
+    return text
+
+
+def print_dataset_optotagging_summary(summary: OptotaggingSummary) -> None:
+    """Print descriptive optotagging counts for the selected dataset."""
+    print("\nOptotagging Dataset Summary")
+    print(f"Sessions: {summary.session_count:,}")
+    print(f"Units: {summary.unit_count:,}")
+
+    print("Cell-type labels:")
+    for label in ["wt", "Sst", "Vip"]:
+        print(f"  - {label}: {summary.cell_type_counts[label]:,}")
+
+    print("By genotype:")
+    for genotype in ["wt", "Sst", "Vip"]:
+        sessions = [
+            session
+            for session in summary.session_summaries
+            if session.genotype == genotype
+        ]
+        if not sessions:
+            print(f"  - {genotype}: sessions=0")
+            continue
+
+        unit_count = sum(session.unit_count for session in sessions)
+        if genotype == "wt":
+            positive_count = sum(session.positive_count for session in sessions)
+        else:
+            positive_count = sum(
+                session.cell_type_counts[genotype] for session in sessions
+            )
+        positive_fraction = positive_count / unit_count if unit_count else 0.0
+        zero_positive_sessions = [
+            session.session_id
+            for session in sessions
+            if session.positive_count == 0
+        ]
+
+        print(
+            f"  - {genotype}: sessions={len(sessions):,}, "
+            f"units={unit_count:,}, positive_units={positive_count:,}, "
+            f"positive_fraction={positive_fraction:.4f}, "
+            f"zero_positive_sessions={len(zero_positive_sessions):,}"
+        )
+
+        if genotype in NON_WT_CELL_TYPES:
+            positive_counts = [session.positive_count for session in sessions]
+            print(
+                f"    positive/session distribution: "
+                f"{describe_count_distribution(positive_counts)}"
+            )
+            print(
+                f"    positive/session bins: "
+                f"{describe_count_bins(positive_counts)}"
+            )
+            print(
+                "    zero-positive session IDs: "
+                f"{format_session_ids(zero_positive_sessions)}"
+            )
 
 
 def load_metadata_csv(metadata_csv: Path) -> pd.DataFrame:
@@ -878,6 +1023,19 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Skip metadata CSV validation.",
     )
+    parser.add_argument(
+        "--check-global-counts",
+        action="store_true",
+        help=(
+            "Run dataset-level optotagging count sanity checks even when only "
+            "one HDF5 file is selected."
+        ),
+    )
+    parser.add_argument(
+        "--show-summary",
+        action="store_true",
+        help="Print optotagging count summaries for single-session runs too.",
+    )
     return parser.parse_args()
 
 
@@ -921,16 +1079,26 @@ def main() -> None:
     summary, h5_failures = test_processed_h5_optotagging_unit_fields(h5_paths)
     failures.extend(h5_failures)
 
-    try:
-        test_dataset_level_optotagging_counts(
-            summary,
-            max_positive_fraction=args.max_positive_fraction,
-            require_non_wt=not args.allow_no_non_wt,
-        )
-    except AssertionError as exc:
-        record_failure(failures, "global label counts", str(exc))
-    except Exception as exc:
-        record_failure(failures, "global label counts", f"unexpected error: {exc!r}")
+    if len(h5_paths) > 1 or args.show_summary:
+        print_dataset_optotagging_summary(summary)
+
+    if len(h5_paths) > 1 or args.check_global_counts:
+        try:
+            test_dataset_level_optotagging_counts(
+                summary,
+                max_positive_fraction=args.max_positive_fraction,
+                require_non_wt=not args.allow_no_non_wt,
+            )
+        except AssertionError as exc:
+            record_failure(failures, "global label counts", str(exc))
+        except Exception as exc:
+            record_failure(
+                failures,
+                "global label counts",
+                f"unexpected error: {exc!r}",
+            )
+    else:
+        print_ok("Single-session run; dataset-level global count check skipped")
 
     if not args.skip_metadata:
         try:
