@@ -17,17 +17,17 @@ import pandas as pd
 from one.api import ONE
 from brainbox.io.one import SpikeSortingLoader
 
-from temporaldata import Data, IrregularTimeSeries, Interval, ArrayDict
-from brainsets.descriptions import (
+from torch_brain.data import (
+    Data,
+    IrregularTimeSeries,
+    Interval,
+    ArrayDict,
     BrainsetDescription,
     SubjectDescription,
     SessionDescription,
     DeviceDescription,
 )
-
-from brainsets.taxonomy import RecordingTech, Sex, Species
-from brainsets import serialize_fn_map
-from brainsets.pipeline import BrainsetPipeline
+from torch_brain.pipeline import BrainsetPipeline
 
 logging.basicConfig(level=logging.INFO)
 
@@ -78,7 +78,7 @@ class Pipeline(BrainsetPipeline):
         # intiantiate a DatasetBuilder which provides utilities for processing data
         brainset = BrainsetDescription(
             id="ibl_brainwide_map_qc",
-            origin_version="",
+            origin_version="0.0.0",
             derived_version="1.0.0",
             source="https://int-brain-lab.github.io/iblenv/notebooks_external/data_release_repro_ephys.html",
             description="Repeatedly inserted Neuropixels multi-electrode probes targeting "
@@ -93,8 +93,8 @@ class Pipeline(BrainsetPipeline):
 
         subject = SubjectDescription(
             id=subject_id,
-            species=Species.MUS_MUSCULUS,
-            sex=Sex.MALE,
+            species="MUS_MUSCULUS",
+            sex="MALE",
         )
 
         # extract experiment metadata
@@ -112,7 +112,7 @@ class Pipeline(BrainsetPipeline):
         # register device
         device_description = DeviceDescription(
             id=device_id,  # TODO: update
-            recording_tech=RecordingTech.UTAH_ARRAY_SPIKES,  # TODO: update
+            recording_tech="UTAH_ARRAY_SPIKES",  # TODO: update
         )
 
         # extract spiking activity
@@ -136,7 +136,7 @@ class Pipeline(BrainsetPipeline):
 
         self.update_status("Storing")
         with h5py.File(store_path, "w") as file:
-            data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
+            data.to_hdf5(file)
 
         logging.info(f"Saved session data to {store_path}")
 

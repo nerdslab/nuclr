@@ -6,8 +6,7 @@ import h5py
 import numpy as np
 import sys
 
-from temporaldata import Data, IrregularTimeSeries, Interval
-from brainsets.core import serialize_fn_map
+from torch_brain.data import Data, IrregularTimeSeries, Interval
 
 root = Path("../data/processed/steinmetz_2019")
 new_root = Path("../data/processed/steinmetz_2019_probes")
@@ -66,6 +65,6 @@ for i, probe in enumerate(probes):
 
     new_fname = new_root / f"{new_data.session.id}.h5"
     with h5py.File(new_fname, "w") as f:
-        new_data.to_hdf5(f, serialize_fn_map=serialize_fn_map)
+        new_data.to_hdf5(f)
 
     print(f"Written to {new_fname}: {valid_time=}, {len(new_data.units)=}")

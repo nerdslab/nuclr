@@ -12,21 +12,25 @@ import h5py
 import numpy as np
 import pandas as pd
 
-from temporaldata import Data, IrregularTimeSeries, ArrayDict, Interval
-from brainsets.pipeline import BrainsetPipeline
-from brainsets import serialize_fn_map
-from brainsets.taxonomy import RecordingTech, Species, Sex, Task
-from brainsets.descriptions import (
+from torch_brain.data import (
+    Data,
+    IrregularTimeSeries,
+    ArrayDict,
+    Interval,
     BrainsetDescription,
     SubjectDescription,
     SessionDescription,
 )
+from torch_brain.pipeline import BrainsetPipeline
 from allensdk.brain_observatory.ecephys.ecephys_project_cache import (
     EcephysProjectCache,
     EcephysSession,
 )
 
 logging.basicConfig(level=logging.INFO)
+
+# Integer code used to mark Neuropixels spikes in `spikes.types` and `units.type`
+NEUROPIXELS_SPIKES = 10
 
 parser = ArgumentParser()
 parser.add_argument("--reprocess", action="store_true")
@@ -79,7 +83,7 @@ class Pipeline(BrainsetPipeline):
         session = SessionDescription(
             id=str(sess_md.Index),
             recording_date=datetime.datetime.strptime(time, "%Y-%m-%d"),
-            task=Task.DISCRETE_VISUAL_CODING,
+            task="DISCRETE_VISUAL_CODING",
         )
 
         store_path = self.processed_dir / f"{session.id}.h5"
@@ -87,10 +91,10 @@ class Pipeline(BrainsetPipeline):
             self.update_status("Skipped Processing")
             return
 
-        sex_map = {"M": Sex.MALE, "F": Sex.FEMALE}
+        sex_map = {"M": "MALE", "F": "FEMALE"}
         subject = SubjectDescription(
             id=str(sess_md.specimen_id),
-            species=Species.MUS_MUSCULUS,
+            species="MUS_MUSCULUS",
             age=sess_md.age_in_days,
             sex=sex_map[sess_md.sex],
             genotype=sess_md.full_genotype,
@@ -126,7 +130,7 @@ class Pipeline(BrainsetPipeline):
 
         self.update_status("Storing")
         with h5py.File(store_path, "w") as file:
-            data.to_hdf5(file, serialize_fn_map=serialize_fn_map)
+            data.to_hdf5(file)
 
         logging.info(f"Saved session data to {store_path}")
 
@@ -150,7 +154,7 @@ def extract_spikes(session):
         spiketimes = spiketimes_dict[unit_id]
         spikes.append(spiketimes)
         unit_index.append([unit_number] * len(spiketimes))
-        types.append(np.ones_like(spiketimes) * int(RecordingTech.NEUROPIXELS_SPIKES))
+        types.append(np.ones_like(spiketimes) * NEUROPIXELS_SPIKES)
 
         peak_channel = session.units.loc[unit_id].peak_channel_id
         waveform = session.mean_waveforms[unit_id].sel(channel_id=peak_channel)
@@ -165,7 +169,7 @@ def extract_spikes(session):
                 "id": str(unit_id),
                 "area_name": metadata["structure_acronym"],
                 "channel_number": metadata["probe_channel_number"],
-                "type": int(RecordingTech.NEUROPIXELS_SPIKES),
+                "type": NEUROPIXELS_SPIKES,
                 "peak_channel": peak_channel,
                 "mean_waveform_on_peak_channel": waveform,
             }

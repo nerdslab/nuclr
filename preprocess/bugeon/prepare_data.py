@@ -10,20 +10,15 @@ import h5py
 import numpy as np
 
 from requests import session
-from temporaldata import (
+from torch_brain.data import (
     Data,
     ArrayDict,
     IrregularTimeSeries,
     Interval,
-)
-
-from brainsets.taxonomy import Species
-from brainsets.descriptions import (
     SessionDescription,
     SubjectDescription,
     BrainsetDescription,
 )
-from brainsets.core import serialize_fn_map
 
 logging.basicConfig(level=logging.INFO)
 
@@ -163,7 +158,7 @@ def main():
 
     subject = SubjectDescription(
         id=subject_id,
-        species=Species.UNKNOWN,
+        species="UNKNOWN",
     )
 
     session = SessionDescription(
@@ -204,7 +199,7 @@ def main():
     args.processed_dir.mkdir(exist_ok=True, parents=True)
     out_fname = args.processed_dir / f"{session_id}.h5"
     with h5py.File(out_fname, "w") as f:
-        data.to_hdf5(f, serialize_fn_map=serialize_fn_map)
+        data.to_hdf5(f)
     print(f"Output written to: {out_fname}")
 
 

@@ -8,14 +8,14 @@ import numpy as np
 import pandas as pd
 import h5py
 
-from temporaldata import Data, IrregularTimeSeries, ArrayDict
-from brainsets.taxonomy import Species
-from brainsets.descriptions import (
+from torch_brain.data import (
+    Data,
+    IrregularTimeSeries,
+    ArrayDict,
     BrainsetDescription,
     SessionDescription,
     SubjectDescription,
 )
-from brainsets.core import serialize_fn_map
 
 
 def main():
@@ -50,7 +50,7 @@ def main():
     # Subject
     subject = SubjectDescription(
         id=subject_id,
-        species=Species.UNKNOWN,
+        species="UNKNOWN",
     )
 
     # Spikes
@@ -92,7 +92,7 @@ def main():
     args.processed_dir.mkdir(exist_ok=True, parents=True)
     output_fname = args.processed_dir / f"{session_id}.h5"
     with h5py.File(output_fname, "w") as f:
-        data.to_hdf5(f, serialize_fn_map=serialize_fn_map)
+        data.to_hdf5(f)
     print(f"Written to {output_fname}")
 
 
