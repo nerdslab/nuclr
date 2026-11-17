@@ -6,13 +6,12 @@ import torch
 import torch.multiprocessing as mp
 from torch.utils.data import DataLoader
 
-from torch_brain.data import Dataset
-from torch_brain.data.sampler import SequentialFixedWindowSampler
+from torch_brain.samplers import SequentialFixedWindowSampler
 from torch_brain.transforms import Compose
 
 from src.models import BaseNeuronEncoder
 from src.losses import Loss
-from src.dataset import TwoViewDataset, TwoViewData, ViewData
+from src.dataset import NuclrDataset, TwoViewDataset, TwoViewData, ViewData
 from src.samplers import (
     RandomFixedWindowSampler,
     DistributedSamplerWrapper,
@@ -228,7 +227,6 @@ class ContrastiveTrainer(Trainer):
         ds = TwoViewDataset(
             root=self.cfg.data_root,
             config=self.cfg.data.train_dataset,
-            unit_id_prefix_fn=lambda _: "",
         )
         ds.transform = Compose(
             [
@@ -275,10 +273,9 @@ class ContrastiveTrainer(Trainer):
 
     def _setup_val_loader(self):
         if not self.cfg.val.loss:
-            ds = Dataset(
+            ds = NuclrDataset(
                 root=self.cfg.data_root,
                 config=self.cfg.data.val_dataset,
-                unit_id_prefix_fn=lambda _: "",
             )
             ds.transform = self.model.tokenize  # type: ignore
             collate_fn = ViewData.collate
@@ -287,7 +284,6 @@ class ContrastiveTrainer(Trainer):
             ds = TwoViewDataset(
                 root=self.cfg.data_root,
                 config=self.cfg.data.val_dataset,
-                unit_id_prefix_fn=lambda _: "",
             )
             ds.transform = self.model.tokenize  # type: ignore
             ds.common_transform = Compose([TwoViewData.from_two_views, self.loss.tokenize])  # type: ignore

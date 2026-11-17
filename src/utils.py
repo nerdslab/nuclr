@@ -8,7 +8,7 @@ from omegaconf import OmegaConf, DictConfig
 import torch
 import torch.distributed as dist
 
-from temporaldata import IrregularTimeSeries
+from torch_brain.data import IrregularTimeSeries
 import logging
 
 

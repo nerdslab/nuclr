@@ -1,14 +1,14 @@
 from __future__ import annotations
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Callable, Any
 import numpy as np
 import torch
+from omegaconf import ListConfig, OmegaConf
 
-from torch_brain.data.dataset import DatasetIndex
-from torch_brain.data import Dataset
-from torch_brain.data import collate as tbrain_collate
-from temporaldata import Interval
-import temporaldata as td
-import brainsets.descriptions as bsd
+from torch_brain.datasets import Dataset, DatasetIndex
+from torch_brain.batching import collate as tbrain_collate
+from torch_brain.data import Interval
+import torch_brain.data as td
 
 from .utils import move_to_device
 from .logger import get_cli_logger
@@ -18,10 +18,151 @@ SamplingIntervals = Dict[str, Interval]
 logger = get_cli_logger()
 
 
-class TwoViewDataset(Dataset):
-    r"""A dataset class that extends TBDataset to support sampling more than 1 data slice.
+def resolve_recording_ids(root: str | Path, config: ListConfig | list) -> List[str]:
+    r"""Turns a dataset selection (see `configs/data/`) into a list of recording ids.
 
-    This dataset class adds two key features on top of TBDataset:
+    A selection looks like this:
+
+    .. code-block:: yaml
+
+        - selection:
+          - brainset: <name of a directory inside `root`>
+            sessions: [...]          # optional: only use these sessions
+            exclude_sessions: [...]  # optional: use all sessions except these
+
+    A recording id is `<brainset>/<session>`, and it corresponds to the file
+    `<root>/<brainset>/<session>.h5`.
+    """
+    if isinstance(config, ListConfig):
+        config = OmegaConf.to_container(config)  # type: ignore
+
+    supported_keys = {"brainset", "session", "sessions", "exclude_sessions"}
+
+    recording_ids = []
+    for i, selection_list in enumerate(config):  # type: ignore
+        unsupported = set(selection_list.keys()) - {"selection"}
+        if unsupported:
+            raise ValueError(f"Unsupported keys in selection {i}: {unsupported}")
+
+        selection = selection_list["selection"]
+        if len(selection) == 0:
+            raise ValueError(
+                f"Selection {i} is empty. Please at least specify a brainset."
+            )
+
+        for subselection in selection:
+            unsupported = set(subselection.keys()) - supported_keys
+            if unsupported:
+                raise ValueError(f"Unsupported keys in selection {i}: {unsupported}")
+
+            brainset = subselection.get("brainset", "")
+            if brainset == "":
+                raise ValueError("Please specify a brainset to include.")
+
+            brainset_dir = Path(root) / brainset
+            session_ids = sorted([f.stem for f in brainset_dir.glob("*.h5")])
+            if len(session_ids) == 0:
+                raise ValueError(
+                    f"No files found in {brainset_dir}. This is either a problem "
+                    "with the provided path or the dataset has not been downloaded "
+                    "and/or processed."
+                )
+
+            sel_session = subselection.get("session", None)
+            sel_sessions = subselection.get("sessions", None)
+            sel_exclude_sessions = subselection.get("exclude_sessions", None)
+
+            if sel_session is not None and sel_sessions is not None:
+                raise ValueError("Cannot specify session AND sessions in selection")
+
+            if sel_session is not None:
+                sel_sessions = [sel_session]
+
+            if sel_sessions is not None:
+                for session in sel_sessions:
+                    if session not in session_ids:
+                        raise ValueError(
+                            f"Session {session} not found in brainset {brainset}"
+                        )
+                session_ids = sorted(sel_sessions)
+
+            if sel_exclude_sessions is not None:
+                session_ids = [
+                    session
+                    for session in session_ids
+                    if session not in sel_exclude_sessions
+                ]
+
+            if len(session_ids) == 0:
+                raise ValueError(
+                    f"No sessions left after filtering for selection {brainset}"
+                )
+
+            for session_id in session_ids:
+                recording_id = f"{brainset}/{session_id}"
+                if recording_id in recording_ids:
+                    raise ValueError(
+                        f"Recording {recording_id} is already included in the dataset."
+                        "Please verify that it is only selected once."
+                    )
+                recording_ids.append(recording_id)
+
+    return recording_ids
+
+
+class NuclrDataset(Dataset):
+    r"""A :class:`torch_brain.datasets.Dataset` over the recordings selected by a
+    NuCLR data config (see :func:`resolve_recording_ids`).
+
+    This class keeps the naming conventions that this codebase was developed with:
+        - Recording ids are `<brainset>/<session>`.
+        - `session.id` and `subject.id` are prefixed with `<brainset.id>/`.
+        - Unit ids are not prefixed. They are assumed to already be unique across
+          all recordings.
+
+    Args:
+        root: Directory containing one sub-directory per brainset.
+        config: The dataset selection. See :func:`resolve_recording_ids`.
+        transform: Optional transform to apply to each data sample.
+    """
+
+    def __init__(
+        self,
+        root: str | Path,
+        config: ListConfig | list,
+        transform: Optional[Callable[[td.Data], Any]] = None,
+    ):
+        super().__init__(
+            dataset_dir=root,
+            recording_ids=resolve_recording_ids(root, config),
+            transform=transform,
+        )
+
+    def get_recording_hook(self, data: td.Data) -> None:
+        brainset_id = data.brainset.id
+        data.units.id = data.units.id.astype(str)
+        data.session.id = f"{brainset_id}/{data.session.id}"
+        data.subject.id = f"{brainset_id}/{data.subject.id}"
+
+    def get_unit_ids(self) -> List[str]:
+        r"""Returns the ids of all units in the dataset."""
+        unit_ids = []
+        for recording_id in self.recording_ids:
+            unit_ids.extend(self.get_recording(recording_id).units.id)
+        return unit_ids
+
+    def get_session_ids(self) -> List[str]:
+        r"""Returns the (sorted) ids of all sessions in the dataset."""
+        return sorted(
+            self.get_recording(recording_id).session.id
+            for recording_id in self.recording_ids
+        )
+
+
+class TwoViewDataset(NuclrDataset):
+    r"""A dataset class that extends NuclrDataset to support sampling more than 1 data slice.
+
+    This dataset class adds two key features on top of NuclrDataset:
     1. A common_transform that can be applied to a batch of samples
     2. Support for both single index and iterable of indices for __getitem__
 
@@ -32,10 +173,7 @@ class TwoViewDataset(Dataset):
     common_transform: Callable[[List[ViewData]], TwoViewData]
 
     def _get_one_item(self, index: DatasetIndex) -> ViewData:
-        sample = self.get(index.recording_id, index.start, index.end)
-        if self.transform is not None:
-            sample = self.transform(sample)
-        return sample  # type: ignore
+        return super().__getitem__(index)  # type: ignore
 
     def __getitem__(self, index: DatasetIndex):
         index2 = self._get_second_view(index)
@@ -272,8 +410,8 @@ class Spikes(td.IrregularTimeSeries):
 
 class SpikeData(td.Data):
     spikes: Spikes
-    session: bsd.SessionDescription
-    brainset: bsd.BrainsetDescription
+    session: td.SessionDescription
+    brainset: td.BrainsetDescription
     units: td.ArrayDict
 
 
@@ -284,6 +422,6 @@ class CalciumTraces(td.IrregularTimeSeries):
 
 class CalciumData(td.Data):
     calcium_traces: CalciumTraces
-    session: bsd.SessionDescription
-    brainset: bsd.BrainsetDescription
+    session: td.SessionDescription
+    brainset: td.BrainsetDescription
     units: td.ArrayDict

@@ -6,7 +6,7 @@ from torch import Tensor
 import torch.nn as nn
 import xformers.ops as xops
 
-from torch_brain.data import chain
+from torch_brain.batching import chain
 
 from . import BaseNeuronEncoder
 from ..utils import Precision, is_divisible
