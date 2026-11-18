@@ -7,8 +7,8 @@ from torch import Tensor
 import torch.nn as nn
 import xformers.ops as xops
 
-from torch_brain.data import chain
-from temporaldata import Data
+from torch_brain.batching import chain
+from torch_brain.data import Data
 
 from . import BaseNeuronEncoder
 from ..utils import Precision

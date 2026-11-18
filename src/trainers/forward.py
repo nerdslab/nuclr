@@ -6,12 +6,11 @@ import torch
 import torch.multiprocessing as mp
 from torch.utils.data import DataLoader
 
-from torch_brain.data import Dataset
-from torch_brain.data.sampler import SequentialFixedWindowSampler
-from temporaldata import Interval
+from torch_brain.data import Interval
+from torch_brain.samplers import SequentialFixedWindowSampler
 
 from src.models import BaseNeuronEncoder
-from src.dataset import ViewData
+from src.dataset import NuclrDataset, ViewData
 from src.samplers import (
     DistributedSamplerWrapper,
 )
@@ -88,10 +87,9 @@ class ForwardPass(Trainer):
                 self.emb_collector.update(y1, batch.unit_ids)
 
     def _setup_loader(self):
-        ds = Dataset(
+        ds = NuclrDataset(
             root=self.cfg.data_root,
             config=self.cfg.data.train_dataset,
-            unit_id_prefix_fn=lambda _: "",
         )
         ds.transform = self.model.tokenize  # type: ignore
         collate_fn = ViewData.collate

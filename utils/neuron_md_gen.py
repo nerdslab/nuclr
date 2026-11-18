@@ -6,7 +6,7 @@ import h5py
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-from temporaldata import Data, ArrayDict
+from torch_brain.data import Data, ArrayDict
 
 
 def main():

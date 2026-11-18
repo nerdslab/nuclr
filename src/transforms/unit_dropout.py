@@ -1,6 +1,6 @@
 from typing import cast
 import numpy as np
-from temporaldata import Data
+from torch_brain.data import Data
 
 from ..dataset import SpikeData, CalciumData
 from ..utils import apply_unit_mask_

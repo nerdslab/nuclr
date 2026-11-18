@@ -11,7 +11,7 @@ import pandas as pd
 import h5py
 from iblatlas.regions import BrainRegions
 
-from temporaldata import Data
+from torch_brain.data import Data
 
 
 def main():

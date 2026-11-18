@@ -1,4 +1,4 @@
-from temporaldata import Data
+from torch_brain.data import Data
 
 
 class NOP:

@@ -3,12 +3,10 @@
 
 from pathlib import Path
 import copy
-import h5py
 import numpy as np
 import argparse
 
-from temporaldata import Data, IrregularTimeSeries, Interval
-from brainsets.core import serialize_fn_map
+from torch_brain.data import Data, IrregularTimeSeries, Interval
 
 
 def split(input_fname: Path, output_root: Path):
@@ -64,8 +62,7 @@ def split(input_fname: Path, output_root: Path):
         setattr(new_data, "_domain", valid_domain)
 
         new_fname = output_root / f"{new_data.session.id}.h5"
-        with h5py.File(new_fname, "w") as f:
-            new_data.to_hdf5(f, serialize_fn_map=serialize_fn_map)
+        new_data.save(new_fname)
 
         print(f"Written to {new_fname}: {valid_time=}, {len(new_data.units)=}")
 
