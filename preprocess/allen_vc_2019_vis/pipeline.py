@@ -28,9 +28,6 @@ from allensdk.brain_observatory.ecephys.ecephys_project_cache import (
 
 logging.basicConfig(level=logging.INFO)
 
-# Integer code used to mark Neuropixels spikes in `spikes.types` and `units.type`
-NEUROPIXELS_SPIKES = 10
-
 parser = ArgumentParser()
 parser.add_argument("--reprocess", action="store_true")
 
@@ -139,7 +136,6 @@ def extract_spikes(session):
 
     spikes = []
     unit_index = []
-    types = []
     # waveforms = []
     unit_meta = []
 
@@ -152,7 +148,6 @@ def extract_spikes(session):
         spiketimes = spiketimes_dict[unit_id]
         spikes.append(spiketimes)
         unit_index.append([unit_number] * len(spiketimes))
-        types.append(np.ones_like(spiketimes) * NEUROPIXELS_SPIKES)
 
         peak_channel = session.units.loc[unit_id].peak_channel_id
         waveform = session.mean_waveforms[unit_id].sel(channel_id=peak_channel)
@@ -167,7 +162,6 @@ def extract_spikes(session):
                 "id": str(unit_id),
                 "area_name": metadata["structure_acronym"],
                 "channel_number": metadata["probe_channel_number"],
-                "type": NEUROPIXELS_SPIKES,
                 "peak_channel": peak_channel,
                 "mean_waveform_on_peak_channel": waveform,
             }
@@ -178,7 +172,6 @@ def extract_spikes(session):
     spikes = np.concatenate(spikes)
     # waveforms = np.concatenate(waveforms)
     unit_index = np.concatenate(unit_index)
-    types = np.concatenate(types)
 
     # convert unit metadata to a Data object
     unit_meta_df = pd.DataFrame(unit_meta)  # list of dicts to dataframe
@@ -188,14 +181,12 @@ def extract_spikes(session):
     spikes = spikes[sorted]
     # waveforms = waveforms[sorted]
     unit_index = unit_index[sorted]
-    types = types[sorted]
 
     spikes = IrregularTimeSeries(
         domain="auto",
         timestamps=spikes,
         # waveforms=waveforms,
         unit_index=unit_index,
-        types=types,
     )
 
     return spikes, units
