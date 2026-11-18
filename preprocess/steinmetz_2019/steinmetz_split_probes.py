@@ -64,7 +64,6 @@ for i, probe in enumerate(probes):
     setattr(new_data, "_domain", valid_domain)
 
     new_fname = new_root / f"{new_data.session.id}.h5"
-    with h5py.File(new_fname, "w") as f:
-        new_data.to_hdf5(f)
+    new_data.save(new_fname)
 
     print(f"Written to {new_fname}: {valid_time=}, {len(new_data.units)=}")

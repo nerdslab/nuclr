@@ -8,7 +8,6 @@ import logging
 from pathlib import Path
 import datetime
 
-import h5py
 import numpy as np
 import pandas as pd
 
@@ -129,8 +128,7 @@ class Pipeline(BrainsetPipeline):
         )
 
         self.update_status("Storing")
-        with h5py.File(store_path, "w") as file:
-            data.to_hdf5(file)
+        data.save(store_path)
 
         logging.info(f"Saved session data to {store_path}")
 

@@ -6,7 +6,6 @@ import argparse
 import datetime
 import numpy as np
 import pandas as pd
-import h5py
 
 from torch_brain.data import (
     Data,
@@ -91,8 +90,7 @@ def main():
 
     args.processed_dir.mkdir(exist_ok=True, parents=True)
     output_fname = args.processed_dir / f"{session_id}.h5"
-    with h5py.File(output_fname, "w") as f:
-        data.to_hdf5(f)
+    data.save(output_fname)
     print(f"Written to {output_fname}")
 
 
