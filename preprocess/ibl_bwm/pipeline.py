@@ -9,7 +9,6 @@
 from argparse import ArgumentParser
 from datetime import datetime
 import logging
-import h5py
 from pathlib import Path
 
 import numpy as np
@@ -135,8 +134,7 @@ class Pipeline(BrainsetPipeline):
         )
 
         self.update_status("Storing")
-        with h5py.File(store_path, "w") as file:
-            data.to_hdf5(file)
+        data.save(store_path)
 
         logging.info(f"Saved session data to {store_path}")
 

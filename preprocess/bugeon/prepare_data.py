@@ -6,7 +6,6 @@ import datetime
 import logging
 from pathlib import Path
 
-import h5py
 import numpy as np
 
 from requests import session
@@ -198,8 +197,7 @@ def main():
 
     args.processed_dir.mkdir(exist_ok=True, parents=True)
     out_fname = args.processed_dir / f"{session_id}.h5"
-    with h5py.File(out_fname, "w") as f:
-        data.to_hdf5(f)
+    data.save(out_fname)
     print(f"Output written to: {out_fname}")
 
 
