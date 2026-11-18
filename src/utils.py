@@ -8,7 +8,6 @@ from omegaconf import OmegaConf, DictConfig
 import torch
 import torch.distributed as dist
 
-from torch_brain.data import IrregularTimeSeries
 import logging
 
 
@@ -30,34 +29,6 @@ class Precision:
 
     def __str__(self):
         return self.precision_str
-
-
-def bin_spikes(
-    spikes: IrregularTimeSeries,
-    ctx_size: float,
-    num_units: int,
-    bin_size: float,
-    right: bool = True,
-) -> np.ndarray:
-    r"""Adapted from torch_brain/utils/binning.py"""
-
-    discard = ctx_size - np.floor(ctx_size / bin_size) * bin_size
-    if discard != 0:
-        if right:
-            start += discard
-        else:
-            end -= discard
-        # reslice
-        spikes = spikes.slice(start, end)
-
-    num_bins = round(ctx_size / bin_size)
-
-    rate = 1 / bin_size  # avoid precision issues
-    binned_spikes = np.zeros((num_units, num_bins))
-    bin_index = np.floor((spikes.timestamps) * rate).astype(int)
-    np.add.at(binned_spikes, (spikes.unit_index, bin_index), 1)
-
-    return binned_spikes
 
 
 def move_to_device(data, device: torch.device):
