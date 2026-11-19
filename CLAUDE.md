@@ -15,7 +15,6 @@ The code is built on [`torch_brain`](https://github.com/neuro-galaxy/torch_brain
 - With a fixed seed on one GPU, training the binned model (`nuclr_v2ga_bin`) has reproduced bit for bit from run to run. Training the spikes model and the calcium model has not: two identical runs give outputs that differ on the order of 1e-2 with `bf16`. Compare those two against that run-to-run noise instead of expecting exact equality.
 - **Never push to `main`.** Work on a branch and open a pull request, one topic per pull request. Descriptions are written in plain, full sentences and contain no machine-specific paths.
 - Code is formatted with `black` (pinned in `requirements.txt`). Check with `black --check .`
-- `img/arch-diagram.png` shows up as modified on machines that have git-lfs installed, because `.gitattributes` marks `*.png` as LFS while the image is committed as a regular file. Leave it out of commits: stage files by name instead of using `git add -A`.
 - Known follow-ups are tracked as GitHub issues (`gh issue list`). The YAML dataset selection files under `configs/data/` are planned to be replaced (issue #13), so avoid building new features on that format.
 
 ## Commands
