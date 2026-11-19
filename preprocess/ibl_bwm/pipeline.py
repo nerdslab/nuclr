@@ -1,6 +1,12 @@
 # /// brainset-pipeline
 # python-version = "3.10"
-# dependencies = ["ONE-api==2.11.2", "ibllib==2.39.1"]
+# dependencies = [
+#     "ONE-api==3.4.2",
+#     "ibllib==3.4.3",
+#     "ibl-neuropixel==1.9.1",
+#     "iblutil==1.20.0",
+#     "iblatlas==0.10.0",
+# ]
 # ///
 
 # Mainly taken from:
@@ -53,6 +59,7 @@ class Pipeline(BrainsetPipeline):
             base_url="https://openalyx.internationalbrainlab.org",
             password="international",
             cache_dir=raw_dir,
+            silent=True,  # do not ask setup questions on first use
         )
         manifest["one"] = one
 
@@ -150,14 +157,20 @@ def extract_spikes(one, eid):
     # iterate over probes and load spikes and clusters
     for pid, probe_name in zip(pids, probe_names):
         spike_loader = SpikeSortingLoader(pid=pid, one=one, eid=eid, pname=probe_name)
-        spikes, clusters, channels = spike_loader.load_spike_sorting()
+        # These two arguments were the defaults in ibllib 2.x, which this pipeline
+        # was written for. ibllib 3 prefers the newer "iblsorter" spike sorting
+        # when a session has one, so the pykilosort sorting is requested explicitly.
+        spikes, clusters, channels = spike_loader.load_spike_sorting(
+            spike_sorter="pykilosort", enforce_version=True
+        )
 
         clusters = SpikeSortingLoader.merge_clusters(
             spikes, clusters, channels, compute_metrics=False
         )
         assert clusters is not None
 
-        clusters["probe_id"] = pid
+        # ONE 3 returns probe ids as UUID objects; they are stored as strings
+        clusters["probe_id"] = str(pid)
 
         spikes["clusters"] += unit_ptr
 
