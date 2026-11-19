@@ -14,6 +14,9 @@ Official codebase for NuCLR as presented in "Know Thyself by Knowing Others: Lea
   <img src="img/arch-diagram.png" alt="NuCLR Architecture Diagram" width="600"/>
 </p>
 
+> [!NOTE]
+> This codebase has changed since the release of the NuCLR paper, mostly to migrate to a newer version of [`torch_brain`](https://github.com/neuro-galaxy/torch_brain). For the original code, see the tag [`v0.1.0`](https://github.com/nerdslab/nuclr/tree/v0.1.0).
+
 ## Usage
 
 This project has been developed on Python3.10, with environment management using [`uv`](https://docs.astral.sh/uv/getting-started/installation/). To setup the environment, do:
