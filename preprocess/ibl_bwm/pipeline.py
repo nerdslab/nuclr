@@ -81,18 +81,6 @@ class Pipeline(BrainsetPipeline):
             self.update_status("Skipped Processing")
             return
 
-        # intiantiate a DatasetBuilder which provides utilities for processing data
-        brainset = BrainsetDescription(
-            id="ibl_brainwide_map_qc",
-            origin_version="0.0.0",
-            derived_version="1.0.0",
-            source="https://int-brain-lab.github.io/iblenv/notebooks_external/data_release_repro_ephys.html",
-            description="Repeatedly inserted Neuropixels multi-electrode probes targeting "
-            "the same brain locations (called the repeated site, including posterior "
-            "parietal cortex, hippocampus, and thalamus) in mice performing a behavioral "
-            "task.",
-        )
-
         # get subject metadata
         self.update_status("Extracting metadata")
         subject_id = one.get_details(eid)["subject"]
@@ -100,7 +88,6 @@ class Pipeline(BrainsetPipeline):
         subject = SubjectDescription(
             id=subject_id,
             species="MUS_MUSCULUS",
-            sex="MALE",
         )
 
         # extract experiment metadata
@@ -118,12 +105,24 @@ class Pipeline(BrainsetPipeline):
         # register device
         device_description = DeviceDescription(
             id=device_id,  # TODO: update
-            recording_tech="UTAH_ARRAY_SPIKES",  # TODO: update
         )
 
         # extract spiking activity
         self.update_status("Extracting Spikes")
-        spikes, units = extract_spikes(one, eid)
+        spikes, units, spike_sorting_revision = extract_spikes(one, eid)
+
+        # intiantiate a DatasetBuilder which provides utilities for processing data
+        brainset = BrainsetDescription(
+            id="ibl_brainwide_map_qc",
+            # revision of the spike sorting on the IBL server, for example "2024-05-06"
+            origin_version=spike_sorting_revision,
+            derived_version="1.0.0",
+            source="https://int-brain-lab.github.io/iblenv/notebooks_external/data_release_repro_ephys.html",
+            description="Repeatedly inserted Neuropixels multi-electrode probes targeting "
+            "the same brain locations (called the repeated site, including posterior "
+            "parietal cortex, hippocampus, and thalamus) in mice performing a behavioral "
+            "task.",
+        )
 
         domain = Interval(spikes.domain.start[0], spikes.domain.end[0] - 300.0)
         # sometimes last few minutes dont have any spikes
@@ -152,6 +151,7 @@ def extract_spikes(one, eid):
 
     spikes_list = []
     units_list = []
+    revisions = set()
     unit_ptr = 0
 
     # iterate over probes and load spikes and clusters
@@ -163,6 +163,11 @@ def extract_spikes(one, eid):
         spikes, clusters, channels = spike_loader.load_spike_sorting(
             spike_sorter="pykilosort", enforce_version=True
         )
+
+        # Remember which revision of the spike sorting the files came from.
+        # Files that are not part of a revision are reported as "unrevised".
+        for file in spike_loader.files["spikes"] + spike_loader.files["clusters"]:
+            revisions.add(file.revision or "unrevised")
 
         clusters = SpikeSortingLoader.merge_clusters(
             spikes, clusters, channels, compute_metrics=False
@@ -228,4 +233,8 @@ def extract_spikes(one, eid):
     # check that id is unique
     assert len(units.id) == len(np.unique(units.id)), "uuids is not unique"
 
-    return spikes, units
+    # All probes of a session normally come from the same revision. If they do
+    # not, every revision is listed.
+    spike_sorting_revision = "+".join(sorted(revisions))
+
+    return spikes, units, spike_sorting_revision
