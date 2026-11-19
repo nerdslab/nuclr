@@ -13,6 +13,10 @@ def arraydict_to_df(ad: ArrayDict) -> pd.DataFrame:
     for k in ad.keys():
         val = getattr(ad, k)
 
+        # A DataFrame column has to be 1-D. Skip everything else.
+        if np.ndim(val) != 1:
+            continue
+
         # Convert byte strings to regular strings if present
         if isinstance(val, np.ndarray) and val.dtype.kind == "O":
             val = np.array(
