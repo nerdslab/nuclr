@@ -4,14 +4,17 @@ import numpy as np
 import torch
 from torch import Tensor
 import torch.nn as nn
-import xformers.ops as xops
 
 from torch_brain.batching import chain
 
 from . import BaseNeuronEncoder
 from ..utils import Precision
 from ..dataset import ViewData, SpikeData
-from ..nn.attention import RotaryCrossAttention, RotarySelfAttention
+from ..nn.attention import (
+    BlockDiagonalMask,
+    RotaryCrossAttention,
+    RotarySelfAttention,
+)
 from ..nn.rotary_embedding import RotaryEmbedding
 
 
@@ -144,16 +147,16 @@ class NuclrV2gaSpikes(BaseNeuronEncoder):
         temp_latent_seqlen = [self.num_latents for _ in range(num_units)]
         spax_latent_seqlen = unit_seqlen.tolist() * self.num_latents
 
-        cross_attn_bias = xops.fmha.BlockDiagonalMask.from_seqlens(
+        cross_attn_bias = BlockDiagonalMask.from_seqlens(
             q_seqlen=temp_latent_seqlen,
             kv_seqlen=spike_seqlen.tolist(),
             device=device,
         )
-        spax_attn_bias = xops.fmha.BlockDiagonalMask.from_seqlens(
+        spax_attn_bias = BlockDiagonalMask.from_seqlens(
             q_seqlen=spax_latent_seqlen,
             device=device,
         )
-        temp_attn_bias = xops.fmha.BlockDiagonalMask.from_seqlens(
+        temp_attn_bias = BlockDiagonalMask.from_seqlens(
             q_seqlen=temp_latent_seqlen,
             device=device,
         )

@@ -4,14 +4,13 @@ import numpy as np
 import torch
 from torch import Tensor
 import torch.nn as nn
-import xformers.ops as xops
 
 from torch_brain.batching import chain
 
 from . import BaseNeuronEncoder
 from ..utils import Precision, is_divisible
 from ..dataset import ViewData, SpikeData
-from ..nn.attention import RotarySelfAttention
+from ..nn.attention import BlockDiagonalMask, RotarySelfAttention
 from ..nn.rotary_embedding import RotaryEmbedding
 
 
@@ -110,7 +109,7 @@ class NuclrV2gaBin(BaseNeuronEncoder):
         device = bins.device
         num_units = int(unit_seqlen.sum())
 
-        spax_attn_bias = xops.fmha.BlockDiagonalMask.from_seqlens(
+        spax_attn_bias = BlockDiagonalMask.from_seqlens(
             q_seqlen=unit_seqlen.tolist() * self.num_latents,
             device=device,
         )

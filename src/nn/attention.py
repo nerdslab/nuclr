@@ -1,12 +1,94 @@
-from typing import Optional
+from dataclasses import dataclass
+from typing import Optional, Sequence
 
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
 from einops import rearrange
-import xformers.ops as xops
+from torch.nn.attention import SDPBackend, sdpa_kernel
+from torch.nn.attention.varlen import varlen_attn
 
 from .rotary_embedding import apply_rotary_pos_emb, invert_rotatry_pos_emb
+
+
+@dataclass
+class BlockDiagonalMask:
+    r"""Block-diagonal attention over sequences packed along the token dimension.
+
+    The tokens of several sequences are concatenated without padding. A query
+    token attends only to the key tokens of its own sequence. ``from_seqlens``
+    takes the same arguments as ``xformers.ops.fmha.BlockDiagonalMask.from_seqlens``.
+    """
+
+    cu_seqlens_q: torch.Tensor
+    cu_seqlens_k: torch.Tensor
+    max_seqlen_q: int
+    max_seqlen_k: int
+
+    @classmethod
+    def from_seqlens(
+        cls,
+        q_seqlen: Sequence[int],
+        kv_seqlen: Optional[Sequence[int]] = None,
+        device: Optional[torch.device] = None,
+    ) -> "BlockDiagonalMask":
+        if kv_seqlen is None:
+            kv_seqlen = q_seqlen
+        assert len(q_seqlen) == len(kv_seqlen)
+
+        def cumulative(seqlen: Sequence[int]) -> torch.Tensor:
+            cu = torch.zeros(len(seqlen) + 1, dtype=torch.int32)
+            cu[1:] = torch.tensor(seqlen, dtype=torch.int32).cumsum(0)
+            return cu.to(device)
+
+        return cls(
+            cu_seqlens_q=cumulative(q_seqlen),
+            cu_seqlens_k=cumulative(kv_seqlen),
+            max_seqlen_q=max(q_seqlen),
+            max_seqlen_k=max(kv_seqlen),
+        )
+
+
+def flash_attention(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    attn_bias: Optional[BlockDiagonalMask] = None,
+    dropout_p: float = 0.0,
+) -> torch.Tensor:
+    r"""FlashAttention-2 from PyTorch on inputs of shape ``(b, n, h, d)``.
+
+    Without ``attn_bias``, every token of a batch element attends to every other
+    token of it. With ``attn_bias``, the batch size must be 1 and the tokens are
+    split into sequences as described by the mask.
+    """
+    if attn_bias is None:
+        # Force the flash backend so that both paths run the same kernel
+        with sdpa_kernel(SDPBackend.FLASH_ATTENTION):
+            out = F.scaled_dot_product_attention(
+                q.transpose(1, 2),
+                k.transpose(1, 2),
+                v.transpose(1, 2),
+                dropout_p=dropout_p,
+            )
+        return out.transpose(1, 2)
+
+    if dropout_p > 0:
+        raise NotImplementedError(
+            "Attention dropout is not supported with a block-diagonal mask, "
+            "because torch.nn.attention.varlen.varlen_attn has no dropout."
+        )
+    assert q.size(0) == 1, "A block-diagonal mask needs a batch size of 1"
+    out = varlen_attn(
+        q[0],
+        k[0],
+        v[0],
+        attn_bias.cu_seqlens_q,
+        attn_bias.cu_seqlens_k,
+        attn_bias.max_seqlen_q,
+        attn_bias.max_seqlen_k,
+    )
+    return out[None]
 
 
 class RotaryCrossAttention(nn.Module):
@@ -46,7 +128,7 @@ class RotaryCrossAttention(nn.Module):
         x_ctx: torch.Tensor,
         rotary_q: Optional[torch.Tensor] = None,
         rotary_ctx: Optional[torch.Tensor] = None,
-        attn_bias: Optional[xops.fmha.AttentionBias] = None,
+        attn_bias: Optional[BlockDiagonalMask] = None,
     ):
 
         q = self.to_q(self.norm(x_q))
@@ -79,14 +161,12 @@ class RotaryCrossAttention(nn.Module):
             if self.rotate_value:
                 v = apply_rotary_pos_emb(rotary_ctx, v)
 
-        # perform attention, by default will use the optimal attention implementation
-        out = xops.memory_efficient_attention(
-            query=q,
-            key=k,
-            value=v,
+        out = flash_attention(
+            q,
+            k,
+            v,
             attn_bias=attn_bias,
-            p=self.atn_dropout if self.training else 0,
-            op=xops.MemoryEfficientAttentionFlashAttentionOp,
+            dropout_p=self.atn_dropout if self.training else 0.0,
         )
 
         if rotary_ctx is not None and self.rotate_value:
@@ -130,7 +210,7 @@ class RotarySelfAttention(nn.Module):
         self,
         x: torch.Tensor,
         rotary: Optional[torch.Tensor] = None,
-        attn_bias: Optional[xops.fmha.AttentionBias] = None,
+        attn_bias: Optional[BlockDiagonalMask] = None,
     ):
 
         q, k, v = self.to_qkv(self.norm(x)).chunk(3, dim=-1)
@@ -159,14 +239,12 @@ class RotarySelfAttention(nn.Module):
             if self.rotate_value:
                 v = apply_rotary_pos_emb(rotary, v)
 
-        # perform attention, by default will use the optimal attention implementation
-        out = xops.memory_efficient_attention(
-            query=q,
-            key=k,
-            value=v,
+        out = flash_attention(
+            q,
+            k,
+            v,
             attn_bias=attn_bias,
-            p=self.atn_dropout if self.training else 0,
-            op=xops.MemoryEfficientAttentionFlashAttentionOp,
+            dropout_p=self.atn_dropout if self.training else 0.0,
         )
 
         if rotary is not None and self.rotate_value:
